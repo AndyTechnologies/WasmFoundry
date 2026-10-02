@@ -1,0 +1,22 @@
+[package]
+name = "wf-wasm"
+description = "Thin WebAssembly analysis layer over wasmparser for WasmFoundry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The only implementation dependency. Section-level parsing, validation and
+# type inspection are delegated to this crate; WasmFoundry never writes its
+# own reader, LEB128 decoder or validator.
+#
+# It is declared here ahead of its first use: dependency selection is part of
+# the crate's architectural contract, and adding it later must not change the
+# public surface.
+wasmparser = { workspace = true }
+
+# `wf-core` is intentionally NOT a dependency yet. It is added when the first
+# `wf-core` type (planned: `Diagnostic`) is actually returned across this
+# boundary, not before.

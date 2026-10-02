@@ -3,3 +3,6 @@
 
 # Orquestacion ODD local
 odd/
+
+# Rust build output
+/target/

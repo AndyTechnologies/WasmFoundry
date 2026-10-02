@@ -1,0 +1,22 @@
+[package]
+name = "wf-cli"
+description = "The wf command line interface for WasmFoundry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "wf"
+path = "src/main.rs"
+
+[dependencies]
+# Command line parsing. Derive is the only style used: the argument surface is
+# the type, so `--help` cannot drift from the real parser.
+clap = { workspace = true }
+
+# The workspace crates are intentionally NOT dependencies yet. `wf inspect`
+# (PHASE 3) is the first command, and it is the first thing that needs
+# `wf-wasm`; `wf run` (PHASE 4) is the first that needs `wf-runtime`. Declaring
+# them now would suggest the CLI already orchestrates work it cannot do.

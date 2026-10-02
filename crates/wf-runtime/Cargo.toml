@@ -1,0 +1,22 @@
+[package]
+name = "wf-runtime"
+description = "Wasmtime embedding for WasmFoundry. Engine ownership and guest invocation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The execution host. Wasmtime's Rust API is the only supported embedding
+# surface: no wasmtime-c-api, no bindgen, no CMake.
+#
+# Features are deliberately minimal. Enabled by name: `std`, `runtime` and
+# `cranelift` (the AOT/JIT compiler used to run core modules). Disabled on
+# purpose: WASI (`wasmtime-wasi` is a separate crate and belongs to PHASE 9),
+# the component model, GC, threads, and every async integration.
+#
+# No async runtime is declared. Wasmtime's synchronous API is sufficient; a
+# tokio dependency would make async the application architecture, which is
+# explicitly forbidden.
+wasmtime = { workspace = true }

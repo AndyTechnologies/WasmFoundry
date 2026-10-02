@@ -1,0 +1,49 @@
+# WasmFoundry workspace root.
+#
+# This manifest is intentionally a virtual manifest: the root holds no code.
+# Every dependency is centralised here so that member manifests only declare
+# the features they actually need, never versions.
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/wf-core",
+    "crates/wf-wasm",
+    "crates/wf-runtime",
+    "crates/wf-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# Floor imposed by wasmtime 49.0.1 (its `rust_version` is 1.96.0). The pinned
+# toolchain in rust-toolchain.toml is 1.98.1; the MSRV stays lower on purpose.
+rust-version = "1.96"
+license = "MIT"
+repository = "https://github.com/AndyTechnologies/WasmFoundry"
+
+[workspace.dependencies]
+# Execution host for `wf run` (PHASE 4+). Minimal feature set: no WASI, no
+# component model, no async support. `wasmtime-wasi` arrives in PHASE 9.
+wasmtime = { version = "49.0.1", default-features = false, features = [
+    "std",
+    "runtime",
+    "cranelift",
+] }
+
+# Binary analysis. WebAssemblyFoundry never ships a hand-written parser.
+wasmparser = "0.260.0"
+
+# CLI argument parsing for the `wf` binary.
+clap = { version = "4.5", default-features = false, features = [
+    "std",
+    "derive",
+    "help",
+    "usage",
+    "error-context",
+] }
+
+# Internal crates, path based so the workspace always builds the local code.
+wf-core = { path = "crates/wf-core", version = "0.1.0" }
+wf-wasm = { path = "crates/wf-wasm", version = "0.1.0" }
+wf-runtime = { path = "crates/wf-runtime", version = "0.1.0" }

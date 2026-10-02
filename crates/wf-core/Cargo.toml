@@ -1,0 +1,16 @@
+[package]
+name = "wf-core"
+description = "Pure domain vocabulary for WasmFoundry. No I/O, no dependencies."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# Intentionally empty.
+#
+# wf-core is the pure domain. It must never depend on wasmtime, wasmparser,
+# clap, serde, tokio or any other crate. If a function here needs to read a
+# file, spawn a process, execute a guest or serialise a value, the function
+# belongs to another crate and receives plain data from this one.
+[dependencies]

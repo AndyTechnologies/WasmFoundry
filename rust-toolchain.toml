@@ -1,0 +1,10 @@
+# Reproducible toolchain for WasmFoundry.
+#
+# Stable only. Nightly is not used and is not justified by any current
+# dependency. The exact patch version is pinned so that fmt, clippy and the
+# compiler produce identical results on every machine.
+
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
