@@ -20,3 +20,9 @@ wasmparser = { workspace = true }
 # `wf-core` is intentionally NOT a dependency yet. It is added when the first
 # `wf-core` type (planned: `Diagnostic`) is actually returned across this
 # boundary, not before.
+
+[dev-dependencies]
+# Binary fixtures are assembled from readable WAT source instead of being committed
+# as opaque bytes. This is a test-only dependency: WasmFoundry never assembles WAT at
+# runtime, and `wat` must never appear in the public API.
+wat = "1.238"

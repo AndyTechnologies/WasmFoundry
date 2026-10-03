@@ -11,6 +11,27 @@ Test inputs that must exist, be stable, and never change underneath a test.
 - **Small and explainable.** Every fixture states in this file, or in a sibling
   `README.md`, what it is for and which test owns it.
 
+## How fixtures are produced
+
+**Sources are versioned, binaries are generated.** The `.wat` files in this tree are
+the record; the `.wasm` bytes are assembled from them at test time with a pinned
+`wat` dev-dependency. A committed binary would be unreviewable — a reviewer sees bytes
+and has to trust them — whereas the WAT is readable, and the generator is pinned in
+`Cargo.lock`. Nothing is hand-edited at the byte level except where a test needs a
+specific corruption, and those cases build the bytes in the test itself so the mutation
+is visible.
+
+## Current contents
+
+| Fixture | Shows |
+| --- | --- |
+| `valid/empty-module.wat` | A module with nothing in it; empty sections must be reported, not omitted |
+| `valid/full-sections.wat` | Imported function and memory, exported memory, table, global and function |
+| `exports/entry-point.wat` | A dependency-free module exporting `_start`, the precompiled shape |
+| `memory/unbounded.wat` | A memory with no declared maximum; the JSON must say `null` explicitly |
+| `globals/mutable-and-immutable.wat` | Both global mutabilities in one module |
+| `invalid/not-wasm.txt` | Input that is not WebAssembly at all; must fail with `WF001` |
+
 ## Layout
 
 Planned from PHASE 3 onward:
@@ -33,14 +54,5 @@ fixtures/
 └── bundles/        produced bundle artifacts and corruption cases
 ```
 
-## How fixtures are produced
-
-Binary fixtures are generated, not hand-typed: a `.wat` source is assembled by a pinned
-tool version and the resulting bytes are committed. Hand-editing bytes produces fixtures
-that cannot be explained in review. The generator script arrives with the first fixture
-that needs it; until then the committed bytes are the record.
-
-## Current contents
-
-None. PHASE 3 (`wf inspect`) adds the first real fixtures, together with the golden
-outputs that pin the human and JSON representations.
+The `imports/` and `cycles/` subdirectories arrive with PHASE 7, when module matching
+and the dependency graph need cases they can be tested against.

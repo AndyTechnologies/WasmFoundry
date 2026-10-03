@@ -8,58 +8,36 @@
 //! `wf-runtime`, and the vocabulary they speak belongs to `wf-core`. A CLI that
 //! grows business logic becomes the god object the architecture forbids.
 //!
+//! # Exit codes
+//!
+//! These numbers are a stable interface: a script may branch on them.
+//!
+//! | Code | Meaning |
+//! | --- | --- |
+//! | `0` | The command succeeded |
+//! | `1` | The input was understood but rejected, reported as `WF001` |
+//! | `2` | The command line or the input path was wrong |
+//!
 //! # Current status
 //!
-//! PHASE 2 defines exactly two behaviours, both provided by the parser:
-//! `wf --version` and `wf --help`. Running `wf` with no arguments reports the
-//! product and version and states plainly that no command is implemented yet.
-//! No command is stubbed: a command that prints "not implemented" is a lie
-//! shaped like a feature. The first real command, `wf inspect`, arrives in
-//! PHASE 3.
+//! `wf inspect` is the only command (PHASE 3). It analyses a binary and never
+//! executes one, so nothing here links the runtime. A command that prints
+//! "not implemented" would be a lie shaped like a feature.
 
 #![forbid(unsafe_code)]
 
-use clap::{Parser, Subcommand};
+mod cli;
+mod inspect;
 
-/// Product name shown in help and version output.
-const PRODUCT: &str = "wf";
+/// The command succeeded.
+const EXIT_OK: i32 = 0;
 
-/// Top level command line surface of `wf`.
-#[derive(Debug, Parser)]
-#[command(
-    name = "wf",
-    version,
-    about = "WasmFoundry: build, inspect and run WebAssembly projects",
-    long_about = "WasmFoundry: build, inspect and run WebAssembly projects.\n\n\
-                  The command surface is being rebuilt incrementally; \
-                  `wf inspect` arrives in PHASE 3."
-)]
-struct Cli {
-    /// Subcommand to execute. Optional because the product can also be
-    /// invoked without one to report its version.
-    #[command(subcommand)]
-    command: Option<Subcommands>,
-}
+/// The input was rejected with a diagnostic code.
+const EXIT_DIAGNOSTIC: i32 = 1;
 
-/// Placeholder for the `wf` subcommands.
-///
-/// The enum is deliberately empty: PHASE 3 fills it with `inspect`, PHASE 4
-/// with `run`, PHASE 5 with `init` and `build`. It exists now so that the help
-/// output, the derive wiring and the `Option<Subcommands>` shape are already
-/// in place, instead of being retrofitted around a growing `main`.
-#[derive(Debug, Subcommand)]
-enum Subcommands {}
+/// The command line or the input path was wrong.
+const EXIT_USAGE: i32 = 2;
 
 fn main() {
-    let cli = Cli::parse();
-
-    match cli.command {
-        // Uninhabited: no subcommand exists yet, so this arm can never run.
-        Some(subcommand) => match subcommand {},
-        None => println!(
-            "{PRODUCT} {} — WasmFoundry. No command is implemented yet; \
-             use `{PRODUCT} --help`.",
-            env!("CARGO_PKG_VERSION")
-        ),
-    }
+    std::process::exit(cli::run());
 }

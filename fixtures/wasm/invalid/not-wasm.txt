@@ -1,0 +1,3 @@
+;; Not a WebAssembly binary. Analysing this must fail with WF001, not crash
+;; and not invent an empty report.
+this is plain text, not a wasm binary at all

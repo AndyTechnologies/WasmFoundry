@@ -16,7 +16,20 @@ path = "src/main.rs"
 # the type, so `--help` cannot drift from the real parser.
 clap = { workspace = true }
 
-# The workspace crates are intentionally NOT dependencies yet. `wf inspect`
-# (PHASE 3) is the first command, and it is the first thing that needs
-# `wf-wasm`; `wf run` (PHASE 4) is the first that needs `wf-runtime`. Declaring
-# them now would suggest the CLI already orchestrates work it cannot do.
+# Binary analysis for `wf inspect` (PHASE 3). The runtime is deliberately not a
+# dependency yet: `inspect` must never be able to execute the binary it reads,
+# and the simplest way to guarantee that is for the execution crate to be absent
+# from this build graph.
+wf-wasm = { workspace = true }
+
+# Serialisation for `--format json`. It lives here and not in the analysis crate:
+# the JSON document is an interface of this binary, not a property of the domain.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# Test-only: fixtures are assembled from readable WAT source, and end-to-end tests parse
+# the JSON the binary actually prints.
+wat = "1.238"
+serde_json = "1"
+

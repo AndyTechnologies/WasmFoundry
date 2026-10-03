@@ -110,8 +110,25 @@ Imports and exports keep their type. The four classes — function, table, memor
 — are distinguished by the parser and preserved, because multi-module resolution depends
 on knowing that a global is not a function.
 
-`wf inspect` (PHASE 3) is the first consumer. It must be safe against malformed input:
-declared sizes, counts, offsets and names are all attacker-controlled.
+`wf inspect` (PHASE 3) is the first consumer, and it is safe against malformed input by
+construction: the header is checked, then the module is run through
+`Validator::validate_all` in full, and only a module the validator accepts is described.
+Declared sizes, counts, offsets and names are all attacker-controlled, so none of them is
+trusted before that point.
+
+What the analysis reports, and why each field earns its place:
+
+- **imports keep their class** — function, table, memory or global, with the type that
+  goes with it. A host that satisfies `env.console_log` with the wrong kind of entity has
+  not satisfied anything.
+- **exports carry the index they publish**, not their position in the export section.
+  A module may import functions and export only some of them, so position and index
+  diverge; resolving a function signature through position would be a guess.
+- **unbounded limits are explicit**. A memory with no maximum is reported as `null` in
+  JSON, not as a missing key, because absent and unbounded are different facts.
+
+The `Error` type carries its own messages and offsets so that no `wasmparser` type reaches
+the caller, and the diagnostic code `WF001` is what the CLI prints.
 
 ## Runtime
 

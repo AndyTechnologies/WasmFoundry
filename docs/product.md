@@ -48,7 +48,7 @@ Each phase delivers one observable capability and must pass its gate before the 
 | --- | --- | --- |
 | 0–1 | Legacy preservation, `main` reset | ✅ |
 | 2 | Rust workspace, four crates, documentation | ✅ |
-| 3 | `wf inspect` — analyse a binary without running it | imports, exports, memory, tables, globals, core vs component |
+| 3 | `wf inspect` — analyse a binary without running it | ✅ imports, exports, memory, tables, globals, core vs component |
 | 4 | `wf run` — execute a core module | Engine → Module → Store → Linker → entry |
 | 5 | `wf init`, `wf build` for precompiled wasm | project concept, `wasmfoundry.toml` |
 | 6 | Rust guest toolchain | Rust source → wasm → run |

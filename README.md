@@ -8,8 +8,9 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 2.** The workspace exists and compiles. No `wf` command is implemented
-> yet. Nothing in this repository is usable as a product — see [Status](#status).
+> **Status: PHASE 3.** `wf inspect` works: it analyses a WebAssembly binary and reports
+> its imports, exports, memories, tables, globals and functions without executing it.
+> Everything else is still ahead — see [Status](#status).
 
 ---
 
@@ -96,13 +97,46 @@ cargo test --workspace
 
 ## Usage
 
-There is no usable command surface yet. The binary builds and answers `--version` and
-`--help`:
-
 ```bash
-cargo run -p wf-cli -- --version
-cargo run -p wf-cli -- --help
+# Analyse a binary and print a report for a human.
+wf inspect app.wasm
+
+# The same analysis as JSON, for other tools to consume.
+wf inspect app.wasm --format json
 ```
+
+```
+$ wf inspect app.wasm
+Module: app.wasm
+Kind: core module
+Version: 1
+
+Imports (2):
+  env.console_log  func  (i32, i32) -> ()
+  env.memory  memory min 2 pages, max 16 pages
+
+Exports (2):
+  memory  memory
+  _start  func  (i32) -> (i32)
+
+Memories (2):
+  #0  min 2 pages, max 16 pages
+  #1  min 2 pages, max 16 pages
+
+Tables (0):
+  (none)
+
+Globals (0):
+  (none)
+
+Functions (2):
+  #0  imported  (i32, i32) -> ()
+  #1  defined   (i32) -> (i32)
+```
+
+`wf inspect` never executes the binary it reads. Exit codes are stable: `0` on success,
+`1` when the input is rejected with a `WFnnn` diagnostic, `2` when the path or the
+command line is wrong.
 
 ---
 
@@ -115,7 +149,7 @@ and must pass its gate before the next begins.
 | --- | --- | --- |
 | 0–1 | Legacy state preserved, `main` reset | ✅ done |
 | 2 | Rust workspace, four crates, documentation | ✅ current |
-| 3 | `wf inspect` | pending |
+| 3 | `wf inspect` | ✅ done |
 | 4 | `wf run` | pending |
 | 5 | `wf init`, `wf build` for precompiled wasm | pending |
 | 6 | Rust guest toolchain | pending |

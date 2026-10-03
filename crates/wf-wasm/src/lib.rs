@@ -38,9 +38,15 @@ use std::fmt;
 /// `\0asm`.
 const WASM_MAGIC: [u8; 4] = [0x00, 0x61, 0x73, 0x6d];
 
-/// The only binary format version accepted today. Both core modules and
-/// components currently use version 1.
-const SUPPORTED_VERSION: u16 = 1;
+/// Binary format version of a core module.
+const VERSION_CORE: u16 = 1;
+
+/// Binary format version of a component.
+///
+/// Components deliberately do not use version 1: the version field carries 13
+/// (`0x0d`) so that a component is never mistaken for a core module by a
+/// consumer that only reads the version.
+const VERSION_COMPONENT: u16 = 13;
 
 /// The binary format layer, taken from the second half of the header.
 ///
@@ -50,6 +56,13 @@ const LAYER_COMPONENT: u16 = 1;
 
 /// Total size of the WebAssembly binary header: magic, version, layer.
 const HEADER_LEN: usize = 8;
+
+mod analysis;
+
+pub use analysis::{
+    Analysis, ComponentSummary, CoreModule, Export, ExportKind, FuncSignature, Function,
+    FunctionKind, Global, Import, ImportType, Memory, Table, ValueType, analyze,
+};
 
 /// The flavour of a WebAssembly binary, as declared by its header layer.
 ///
@@ -75,9 +88,11 @@ impl fmt::Display for ModuleKind {
 
 /// Why a binary could not be classified as a WebAssembly binary.
 ///
-/// Each variant names a specific defect in the eight-byte header, so callers
-/// can report *what* is wrong with an input instead of a generic failure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Each variant names a specific defect in the input, so callers can report *what*
+/// is wrong with an input instead of a generic failure.
+///
+/// This type is not `Copy`: a parser message is owned text, not a number.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     /// Fewer than eight bytes were available, so the header is incomplete.
     /// `available` is the number of bytes actually received.
@@ -96,6 +111,15 @@ pub enum Error {
     UnsupportedLayer {
         /// Layer field read from the header.
         layer: u16,
+    },
+    /// The header was fine but the body is not a valid module. This is the code path
+    /// for malformed input: truncated sections, counts that overrun the binary, type
+    /// indexes that were never defined.
+    InvalidWasm {
+        /// What the parser rejected, in its own words.
+        message: String,
+        /// Byte offset the parser blamed, when it named one.
+        offset: Option<u64>,
     },
 }
 
@@ -116,6 +140,10 @@ impl fmt::Display for Error {
             Error::UnsupportedLayer { layer } => {
                 write!(f, "unsupported WebAssembly binary layer {layer}")
             }
+            Error::InvalidWasm { message, offset } => match offset {
+                Some(offset) => write!(f, "invalid WebAssembly module at byte {offset}: {message}"),
+                None => write!(f, "invalid WebAssembly module: {message}"),
+            },
         }
     }
 }
@@ -144,14 +172,16 @@ pub fn classify(bytes: &[u8]) -> Result<ModuleKind, Error> {
     }
 
     let version = u16::from_le_bytes([bytes[4], bytes[5]]);
-    if version != SUPPORTED_VERSION {
-        return Err(Error::UnsupportedVersion { version });
-    }
-
     let layer = u16::from_le_bytes([bytes[6], bytes[7]]);
+
+    // The layer decides which version is legitimate: a core module carries version 1
+    // and a component carries version 13. A header that pairs a known layer with the
+    // wrong version is a version problem, not a layer problem, and saying so keeps the
+    // diagnosis accurate for whoever has to fix the file.
     match layer {
-        LAYER_CORE => Ok(ModuleKind::CoreModule),
-        LAYER_COMPONENT => Ok(ModuleKind::Component),
+        LAYER_CORE if version == VERSION_CORE => Ok(ModuleKind::CoreModule),
+        LAYER_COMPONENT if version == VERSION_COMPONENT => Ok(ModuleKind::Component),
+        LAYER_CORE | LAYER_COMPONENT => Err(Error::UnsupportedVersion { version }),
         _ => Err(Error::UnsupportedLayer { layer }),
     }
 }
@@ -163,8 +193,8 @@ mod tests {
     /// Real header of a core module: magic, version 1, layer 0.
     const CORE_MODULE_HEADER: [u8; 8] = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
-    /// Real header of a component: magic, version 1, layer 1.
-    const COMPONENT_HEADER: [u8; 8] = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x01, 0x00];
+    /// Real header of a component: magic, version 13 (0x0d), layer 1.
+    const COMPONENT_HEADER: [u8; 8] = [0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00];
 
     #[test]
     fn classifies_core_module_header() {
