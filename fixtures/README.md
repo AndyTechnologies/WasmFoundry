@@ -31,6 +31,11 @@ is visible.
 | `memory/unbounded.wat` | A memory with no declared maximum; the JSON must say `null` explicitly |
 | `globals/mutable-and-immutable.wat` | Both global mutabilities in one module |
 | `invalid/not-wasm.txt` | Input that is not WebAssembly at all; must fail with `WF001` |
+| `entry/missing-start.wat` | Exports exist, but not `_start`; must fail with `WF005` |
+| `entry/with-parameters.wat` | `_start` takes an argument; refused as `WF010` rather than guessed at |
+| `entry/not-a-function.wat` | `_start` is exported as a memory; `WF010`, not "missing" |
+| `runtime/trap.wat` | Faults immediately; the reason must survive, not just the backtrace header (`WF009`) |
+| `runtime/unsatisfied-import.wat` | Imports nothing that exists yet; must fail with `WF002` |
 
 ## Layout
 
@@ -55,4 +60,6 @@ fixtures/
 ```
 
 The `imports/` and `cycles/` subdirectories arrive with PHASE 7, when module matching
-and the dependency graph need cases they can be tested against.
+and the dependency graph need cases they can be tested against. The `entry/` and
+`runtime/` subdirectories describe PHASE 4's failure modes; `wf run`'s end-to-end tests
+assemble these same cases inline so the assertions and the fixtures stay in step.

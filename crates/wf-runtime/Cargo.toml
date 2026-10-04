@@ -20,3 +20,11 @@ repository.workspace = true
 # tokio dependency would make async the application architecture, which is
 # explicitly forbidden.
 wasmtime = { workspace = true }
+
+# Domain vocabulary: the entry point a run resolves is a domain value, not a string
+# the runtime happens to look for. This is the one path every crate may depend on.
+wf-core = { workspace = true }
+
+[dev-dependencies]
+# Test-only: fixtures are assembled from readable WAT source.
+wat = "1.238" 

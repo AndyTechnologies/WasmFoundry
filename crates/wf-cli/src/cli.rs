@@ -14,8 +14,8 @@ const PRODUCT: &str = "wf";
     version,
     about = "WasmFoundry: build, inspect and run WebAssembly projects",
     long_about = "WasmFoundry: build, inspect and run WebAssembly projects.\n\n\
-                  The command surface is being rebuilt incrementally; \
-                  `wf inspect` arrived in PHASE 3."
+                  The command surface is being rebuilt incrementally: \
+                  `wf inspect` in PHASE 3, `wf run` in PHASE 4."
 )]
 pub struct Cli {
     /// Subcommand to execute. Optional because the product can also be
@@ -32,6 +32,8 @@ pub struct Cli {
 pub enum Command {
     /// Analyse a WebAssembly binary without running it.
     Inspect(InspectArgs),
+    /// Execute a WebAssembly core module.
+    Run(RunArgs),
 }
 
 /// Arguments of `wf inspect`.
@@ -43,6 +45,17 @@ pub struct InspectArgs {
     /// How to render the report.
     #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
     pub format: OutputFormat,
+}
+
+/// Arguments of `wf run`.
+#[derive(Debug, clap::Args)]
+pub struct RunArgs {
+    /// Path to the WebAssembly module to execute.
+    pub path: PathBuf,
+
+    /// Guest export to invoke. Defaults to `_start`.
+    #[arg(long)]
+    pub entry: Option<String>,
 }
 
 /// Rendering of a command result.
@@ -67,5 +80,6 @@ pub fn run() -> i32 {
             crate::EXIT_OK
         }
         Some(Command::Inspect(args)) => crate::inspect::run(&args),
+        Some(Command::Run(args)) => crate::run::run(&args),
     }
 }

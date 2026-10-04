@@ -22,6 +22,14 @@ clap = { workspace = true }
 # from this build graph.
 wf-wasm = { workspace = true }
 
+# Execution for `wf run` (PHASE 4). Depending on this crate is how the CLI gets a
+# runtime: no Wasmtime type reaches this crate, so the engine binding stays private to
+# `wf-runtime`.
+wf-runtime = { workspace = true }
+
+# The entry point is a domain value, not a bare string the runtime happens to look for.
+wf-core = { workspace = true }
+
 # Serialisation for `--format json`. It lives here and not in the analysis crate:
 # the JSON document is an interface of this binary, not a property of the domain.
 serde = { version = "1", features = ["derive"] }

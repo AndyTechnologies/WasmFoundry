@@ -49,12 +49,12 @@ Each phase delivers one observable capability and must pass its gate before the 
 | 0–1 | Legacy preservation, `main` reset | ✅ |
 | 2 | Rust workspace, four crates, documentation | ✅ |
 | 3 | `wf inspect` — analyse a binary without running it | ✅ imports, exports, memory, tables, globals, core vs component |
-| 4 | `wf run` — execute a core module | Engine → Module → Store → Linker → entry |
+| 4 | `wf run` — execute a core module | ✅ Engine → Module → Store → Linker → entry, no WASI |
 | 5 | `wf init`, `wf build` for precompiled wasm | project concept, `wasmfoundry.toml` |
 | 6 | Rust guest toolchain | Rust source → wasm → run |
 | 7 | Dependency graph, module matching | module A imports module B, both run |
 | 8 | Host ABI v1 | documented namespaces, signatures, ownership |
-| 9 | WASI, mounts, capability policy | denied by default, granted explicitly |
+| 9 | WASI, mounts, capability policy, execution limits | denied by default, granted explicitly, bounded execution |
 | 10 | C++ toolchain | C++ source → wasm → run |
 | 11 | AssemblyScript toolchain | AS source → wasm → run |
 | 12 | Cache | cold miss, warm hit, correct invalidation |
@@ -88,9 +88,18 @@ components and full cross-compilation are explicitly **not** release blockers.
 This is the distinction the product is most careful about, because conflating it produces
 false promises.
 
-**`wf run` is sandboxed.** A guest runs under Wasmtime with a deny-by-default capability
-policy: no filesystem, no network, no environment, no process execution, unless the
-invocation grants them. Resource limits bound memory and wall-clock time.
+**`wf run` is sandboxed, with a narrower boundary than it will have.** A guest runs under
+Wasmtime and reaches nothing: there is no host ABI yet, so any import fails to resolve
+and no filesystem, network, environment or process access is reachable at all. That is
+true isolation by absence, not by policy.
+
+What is missing is **execution limits**. PHASE 9 adds the wall-clock timeout and the
+memory cap of §60. Until then a guest may run forever or grow without bound, and
+`wf run` imposes neither. Until that exists, a module should be treated as untrusted
+input to be run only where unbounded execution is acceptable.
+
+When the capability policy lands, it stays deny-by-default: filesystem, network,
+environment and host process execution are all granted explicitly, never inferred.
 
 **`wf build` is not sandboxed.** Building a project runs the guest toolchain: `cargo`,
 `build.rs`, compilers, package managers, and any script the project defines. Those

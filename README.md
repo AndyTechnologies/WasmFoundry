@@ -8,9 +8,9 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 3.** `wf inspect` works: it analyses a WebAssembly binary and reports
-> its imports, exports, memories, tables, globals and functions without executing it.
-> Everything else is still ahead — see [Status](#status).
+> **Status: PHASE 4.** `wf inspect` analyses a WebAssembly binary without executing it,
+> and `wf run` executes a core module. Both are usable. Everything else is still ahead —
+> see [Status](#status).
 
 ---
 
@@ -103,6 +103,10 @@ wf inspect app.wasm
 
 # The same analysis as JSON, for other tools to consume.
 wf inspect app.wasm --format json
+
+# Execute a core module. The entry point defaults to _start.
+wf run app.wasm
+wf run app.wasm --entry main
 ```
 
 ```
@@ -134,9 +138,28 @@ Functions (2):
   #1  defined   (i32) -> (i32)
 ```
 
-`wf inspect` never executes the binary it reads. Exit codes are stable: `0` on success,
-`1` when the input is rejected with a `WFnnn` diagnostic, `2` when the path or the
-command line is wrong.
+`wf inspect` never executes the binary it reads. Exit codes are stable and a script may
+branch on them:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The command succeeded |
+| `1` | The command ran and the input was rejected, with a `WFnnn` diagnostic |
+| `2` | The command line or the input path was wrong |
+
+Diagnostic codes, also stable:
+
+| Code | Cause |
+| --- | --- |
+| `WF001` | The input is not a compilable WebAssembly module |
+| `WF002` | An import has no provider |
+| `WF005` | The requested entry point is not exported |
+| `WF009` | The guest faulted while executing |
+| `WF010` | The entry point exists but cannot be invoked as written |
+
+A guest returning a value from its entry point is reported as output, not converted into
+this process's exit code: that mapping is a host-ABI decision, and the host ABI arrives in
+PHASE 8.
 
 ---
 
@@ -176,13 +199,24 @@ deliberately **not** being carried over.
 
 ## Security
 
-`wf run` executes untrusted WebAssembly under Wasmtime with a deny-by-default
-capability policy and resource limits. `wf build` does **not** sandbox anything: it runs
-the guest toolchain — including `build.rs`, compilers and any script the project
-defines — with the permissions of your user account. These are two different trust
-boundaries and the product never conflates them. See
-[`docs/product.md`](docs/product.md#security-boundary) and the threat model once it
-exists.
+Two trust boundaries exist in this product, and they are not the same thing.
+
+**`wf run` executes a guest.** Wasmtime's sandbox applies: the guest has no filesystem,
+network, environment or process access, because there is nothing to give it. There is no
+host ABI yet, so every import fails to resolve rather than reaching the host.
+
+**`wf run` has no execution limits yet.** Until PHASE 9 it sets no wall-clock timeout and
+no memory cap, so a guest can run forever or grow its memory without bound. Run modules
+you do not trust only where that is acceptable to you; this is stated rather than implied.
+
+**`wf build` will not sandbox anything.** When it arrives in PHASE 5 it will run the guest
+toolchain — `build.rs`, compilers, package managers, scripts — with the permissions of
+your account. Wasmtime's sandbox does not protect against those processes, and the product
+never claims it does.
+
+`wf inspect` does not execute what it reads. See
+[`docs/product.md`](docs/product.md#security-boundary); `docs/security/threat-model.md`
+arrives with the capability policy in PHASE 9.
 
 ## License
 

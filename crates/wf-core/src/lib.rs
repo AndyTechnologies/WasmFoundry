@@ -38,9 +38,13 @@
 //!
 //! - `Diagnostic` — a machine-readable problem (code, severity, message,
 //!   location) that every layer can produce and every layer can format.
-//!   PHASE 3.
+//!   **Not introduced yet**: PHASE 3 produced exactly one diagnostic (`WF001`)
+//!   and it lives in the CLI as a constant, because a second producer does not
+//!   exist. This type lands with the first layer that has to share one.
 //! - `EntryPoint` — the guest-export contract a runtime invocation starts at,
-//!   separating exported symbol names from a raw string. PHASE 4.
+//!   separating exported symbol names from a raw string.
+//!   **Introduced in PHASE 4** ([`EntryPoint`]), the first type of this roadmap
+//!   to exist.
 //! - `Artifact` — the logical result of a build step, independent of where its
 //!   bytes are stored. PHASE 5.
 //! - `ArtifactId` — stable identity of an `Artifact` inside a graph, so
@@ -68,3 +72,7 @@
 //! The roadmap is a plan, not a promise of shape. A type may arrive with
 //! fewer fields than sketched here, or not at all, if the feature that needs
 //! it turns out not to require it.
+
+mod entry_point;
+
+pub use entry_point::{EntryPoint, EntryPointError};

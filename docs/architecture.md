@@ -154,11 +154,39 @@ leak one guest's memory into the next invocation and make concurrent runs imposs
 The `Engine` may be shared because it holds configuration, not state. Everything from
 `Store` downwards is created per invocation.
 
-Wasmtime types do not escape into the domain. `RuntimePolicy` describes capabilities in
-domain terms (`FilesystemAccess::ReadOnly`, and so on); an adapter translates that into
-whatever `wasmtime-wasi` currently exposes. WasmFoundry tracks a stable version
-constraint in `Cargo.toml` and an exact version in `Cargo.lock`, rather than pinning a
-version permanently by hand.
+Wasmtime types do not escape into the domain. `wf-runtime` owns its engine, so neither
+the engine nor the compiled module nor the store reaches `wf-cli`; the public surface is
+`Runtime`, an opaque `Module`, `RunOutcome` and `RuntimeError`. That keeps the embedding
+replaceable: a caller cannot depend on Wasmtime because it never sees Wasmtime.
+`RuntimePolicy` (PHASE 9) will describe capabilities in domain terms
+(`FilesystemAccess::ReadOnly`, and so on) and an adapter will translate them into whatever
+`wasmtime-wasi` exposes.
+
+The version is tracked as a constraint in `Cargo.toml` (`^49.0.1`) with the exact resolved
+version in `Cargo.lock`, so a patch release lands by ordinary means rather than by a hand
+edit. Nightly is not used, and the MSRV is whatever the heaviest dependency actually
+requires — currently 1.96, imposed by `wasmtime` 49.
+
+### Why the error type has one variant per cause
+
+A run can fail for five unrelated reasons, and each one is fixed by a different action:
+
+```text
+InvalidWasm     the bytes never compiled            fix the input
+Link            an import has no provider           add a host function (PHASE 8)
+MissingExport   the guest does not export it        fix --entry or the guest
+Trap            the guest faulted while running     debug the guest
+Configuration   the export cannot be invoked        fix the guest's signature
+```
+
+Two causes from the plan's taxonomy are absent on purpose: a host error needs a host
+function, and an execution-limit error needs limits. Both arrive with their own cause
+rather than as empty variants nobody can produce.
+
+Every message is built by walking the error's cause chain. Wasmtime reports the context
+first — `error while executing at wasm backtrace:` — and the reason one level down.
+Taking only the top of the chain would print a backtrace header with no fault in it, which
+is the generic failure the plan forbids with different words.
 
 ## Toolchains
 

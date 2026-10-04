@@ -1121,6 +1121,8 @@ dependencies = [
  "serde",
  "serde_json",
  "wat",
+ "wf-core",
+ "wf-runtime",
  "wf-wasm",
 ]
 
@@ -1133,6 +1135,8 @@ name = "wf-runtime"
 version = "0.1.0"
 dependencies = [
  "wasmtime",
+ "wat",
+ "wf-core",
 ]
 
 [[package]]

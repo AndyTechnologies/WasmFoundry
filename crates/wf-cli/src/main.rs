@@ -20,14 +20,15 @@
 //!
 //! # Current status
 //!
-//! `wf inspect` is the only command (PHASE 3). It analyses a binary and never
-//! executes one, so nothing here links the runtime. A command that prints
-//! "not implemented" would be a lie shaped like a feature.
+//! `wf inspect` (PHASE 3) and `wf run` (PHASE 4). `inspect` never executes what it
+//! reads; `run` executes a core module with no WASI and no host ABI. A command that
+//! prints "not implemented" would be a lie shaped like a feature.
 
 #![forbid(unsafe_code)]
 
 mod cli;
 mod inspect;
+mod run;
 
 /// The command succeeded.
 const EXIT_OK: i32 = 0;
