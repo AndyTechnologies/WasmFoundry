@@ -1,0 +1,22 @@
+Module: <module.wasm>
+Kind: core module
+Version: 1
+
+Imports (0):
+  (none)
+
+Exports (2):
+  memory  memory
+  _start  func  () -> ()
+
+Memories (1):
+  #0  min 1 page, no maximum
+
+Tables (0):
+  (none)
+
+Globals (0):
+  (none)
+
+Functions (1):
+  #0  defined   () -> ()

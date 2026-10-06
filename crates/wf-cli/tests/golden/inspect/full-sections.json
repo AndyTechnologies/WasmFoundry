@@ -1,0 +1,113 @@
+{
+  "kind": "core-module",
+  "module": {
+    "imports": [
+      {
+        "module": "env",
+        "name": "console_log",
+        "type": "function",
+        "signature": {
+          "params": [
+            "i32",
+            "i32"
+          ],
+          "results": []
+        }
+      },
+      {
+        "module": "env",
+        "name": "host_memory",
+        "type": "memory",
+        "memory": {
+          "minimum-pages": 2,
+          "maximum-pages": 16,
+          "shared": false,
+          "memory64": false
+        }
+      }
+    ],
+    "exports": [
+      {
+        "name": "memory",
+        "type": "memory",
+        "index": 1
+      },
+      {
+        "name": "table",
+        "type": "table",
+        "index": 0
+      },
+      {
+        "name": "answer",
+        "type": "global",
+        "index": 0
+      },
+      {
+        "name": "_start",
+        "type": "function",
+        "index": 1,
+        "signature": {
+          "params": [
+            "i32"
+          ],
+          "results": [
+            "i32"
+          ]
+        }
+      }
+    ],
+    "memories": [
+      {
+        "minimum-pages": 2,
+        "maximum-pages": 16,
+        "shared": false,
+        "memory64": false
+      },
+      {
+        "minimum-pages": 2,
+        "maximum-pages": 16,
+        "shared": false,
+        "memory64": false
+      }
+    ],
+    "tables": [
+      {
+        "element-type": "funcref",
+        "minimum": 1,
+        "maximum": 10,
+        "shared": false
+      }
+    ],
+    "globals": [
+      {
+        "value-type": "i32",
+        "mutable": false
+      }
+    ],
+    "functions": [
+      {
+        "index": 0,
+        "origin": "imported",
+        "signature": {
+          "params": [
+            "i32",
+            "i32"
+          ],
+          "results": []
+        }
+      },
+      {
+        "index": 1,
+        "origin": "defined",
+        "signature": {
+          "params": [
+            "i32"
+          ],
+          "results": [
+            "i32"
+          ]
+        }
+      }
+    ]
+  }
+}

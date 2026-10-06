@@ -1,0 +1,24 @@
+{
+  "kind": "core-module",
+  "module": {
+    "imports": [],
+    "exports": [
+      {
+        "name": "memory",
+        "type": "memory",
+        "index": 0
+      }
+    ],
+    "memories": [
+      {
+        "minimum-pages": 1,
+        "maximum-pages": null,
+        "shared": false,
+        "memory64": false
+      }
+    ],
+    "tables": [],
+    "globals": [],
+    "functions": []
+  }
+}

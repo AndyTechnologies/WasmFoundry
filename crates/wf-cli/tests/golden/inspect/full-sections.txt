@@ -1,0 +1,27 @@
+Module: <module.wasm>
+Kind: core module
+Version: 1
+
+Imports (2):
+  env.console_log  func  (i32, i32) -> ()
+  env.host_memory  memory min 2 pages, max 16 pages
+
+Exports (4):
+  memory  memory
+  table  table
+  answer  global
+  _start  func  (i32) -> (i32)
+
+Memories (2):
+  #0  min 2 pages, max 16 pages
+  #1  min 2 pages, max 16 pages
+
+Tables (1):
+  #0  funcref, min 1, max 10
+
+Globals (1):
+  #0  i32 (immutable)
+
+Functions (2):
+  #0  imported  (i32, i32) -> ()
+  #1  defined   (i32) -> (i32)

@@ -1,0 +1,6 @@
+Module: <module.wasm>
+Kind: component
+Version: 13
+
+This binary is a WebAssembly component. WasmFoundry recognises the format
+but does not analyse components yet; that arrives in PHASE 17.

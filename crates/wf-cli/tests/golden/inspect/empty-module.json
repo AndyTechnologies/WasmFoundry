@@ -1,0 +1,11 @@
+{
+  "kind": "core-module",
+  "module": {
+    "imports": [],
+    "exports": [],
+    "memories": [],
+    "tables": [],
+    "globals": [],
+    "functions": []
+  }
+}

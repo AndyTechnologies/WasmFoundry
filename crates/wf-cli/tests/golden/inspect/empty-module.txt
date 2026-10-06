@@ -1,0 +1,22 @@
+Module: <module.wasm>
+Kind: core module
+Version: 1
+
+Imports (0):
+  (none)
+
+Exports (0):
+  (none)
+
+Memories (0):
+  (none)
+
+Tables (0):
+  (none)
+
+Globals (0):
+  (none)
+
+Functions (0):
+  (none)
+

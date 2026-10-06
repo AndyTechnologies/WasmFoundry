@@ -55,17 +55,19 @@ fn render_imports(out: &mut String, module: &CoreModule) {
     let _ = writeln!(out, "Imports ({}):", module.imports().len());
     if module.imports().is_empty() {
         let _ = writeln!(out, "  (none)");
-        return;
+    } else {
+        for import in module.imports() {
+            let detail = match import.ty() {
+                ImportType::Function(signature) => format!("func  {signature}"),
+                ImportType::Table(table) => format!("table {}", render_table(table)),
+                ImportType::Memory(memory) => format!("memory {}", render_memory(memory)),
+                ImportType::Global(global) => format!("global {}", render_global(global)),
+            };
+            let _ = writeln!(out, "  {}.{}  {detail}", import.module(), import.name());
+        }
     }
-    for import in module.imports() {
-        let detail = match import.ty() {
-            ImportType::Function(signature) => format!("func  {signature}"),
-            ImportType::Table(table) => format!("table {}", render_table(table)),
-            ImportType::Memory(memory) => format!("memory {}", render_memory(memory)),
-            ImportType::Global(global) => format!("global {}", render_global(global)),
-        };
-        let _ = writeln!(out, "  {}.{}  {detail}", import.module(), import.name());
-    }
+    // The blank line separates sections whether or not there was anything in this one,
+    // so a report stays scannable when a module happens to be empty.
     let _ = writeln!(out);
 }
 
@@ -73,6 +75,7 @@ fn render_exports(out: &mut String, module: &CoreModule) {
     let _ = writeln!(out, "Exports ({}):", module.exports().len());
     if module.exports().is_empty() {
         let _ = writeln!(out, "  (none)");
+        let _ = writeln!(out);
         return;
     }
     for export in module.exports() {
@@ -108,6 +111,7 @@ fn render_memories(out: &mut String, module: &CoreModule) {
     let _ = writeln!(out, "Memories ({}):", module.memories().len());
     if module.memories().is_empty() {
         let _ = writeln!(out, "  (none)");
+        let _ = writeln!(out);
         return;
     }
     for (index, memory) in module.memories().iter().enumerate() {
@@ -120,6 +124,7 @@ fn render_tables(out: &mut String, module: &CoreModule) {
     let _ = writeln!(out, "Tables ({}):", module.tables().len());
     if module.tables().is_empty() {
         let _ = writeln!(out, "  (none)");
+        let _ = writeln!(out);
         return;
     }
     for (index, table) in module.tables().iter().enumerate() {
@@ -132,6 +137,7 @@ fn render_globals(out: &mut String, module: &CoreModule) {
     let _ = writeln!(out, "Globals ({}):", module.globals().len());
     if module.globals().is_empty() {
         let _ = writeln!(out, "  (none)");
+        let _ = writeln!(out);
         return;
     }
     for (index, global) in module.globals().iter().enumerate() {
@@ -144,6 +150,7 @@ fn render_functions(out: &mut String, module: &CoreModule) {
     let _ = writeln!(out, "Functions ({}):", module.functions().len());
     if module.functions().is_empty() {
         let _ = writeln!(out, "  (none)");
+        let _ = writeln!(out);
         return;
     }
     for function in module.functions() {
@@ -160,12 +167,21 @@ fn render_functions(out: &mut String, module: &CoreModule) {
     }
 }
 
+/// Renders a page count with correct pluralisation: `1 page`, `2 pages`.
+fn pages(count: u64) -> String {
+    if count == 1 {
+        "1 page".to_owned()
+    } else {
+        format!("{count} pages")
+    }
+}
+
 fn render_memory(memory: &Memory) -> String {
     let maximum = match memory.maximum() {
-        Some(maximum) => format!("{maximum} pages"),
-        None => "unbounded".to_owned(),
+        Some(maximum) => format!("max {}", pages(maximum)),
+        None => "no maximum".to_owned(),
     };
-    let mut text = format!("min {} pages, max {maximum}", memory.minimum());
+    let mut text = format!("min {}, {maximum}", pages(memory.minimum()));
     if memory.shared() {
         text.push_str(", shared");
     }
