@@ -26,3 +26,9 @@ wasmparser = { workspace = true }
 # as opaque bytes. This is a test-only dependency: WasmFoundry never assembles WAT at
 # runtime, and `wat` must never appear in the public API.
 wat = "1.238"
+
+# Structured input generation for the boundary tests in `tests/fuzz.rs`. These run on
+# the pinned stable toolchain: `cargo fuzz` would require nightly, which the project
+# does not use (see `rust-toolchain.toml` and plan section 23).
+wasm-smith = "0.261"
+arbitrary = "1"

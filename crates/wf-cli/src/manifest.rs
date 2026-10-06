@@ -176,4 +176,104 @@ toolchain = "precompiled"
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code(), DiagnosticCode::InvalidManifest);
     }
+
+    /// xorshift64*: identical on every machine, so a failing seed reproduces the same
+    /// bytes without a `rand` dependency.
+    fn entropy(seed: u64) -> impl FnMut() -> u64 {
+        let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        move || {
+            state ^= state >> 12;
+            state ^= state << 25;
+            state ^= state >> 27;
+            state.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+    }
+
+    /// The characters most likely to confuse a TOML reader.
+    const NOISE: &[u8] = b"abcdefghij0123456789{}[]\"'=\n\t .#-";
+
+    /// Replaces `count` characters with noise.
+    fn mutate(text: &str, seed: u64, count: usize) -> String {
+        let mut bytes = text.as_bytes().to_vec();
+        let mut next = entropy(seed);
+        if bytes.is_empty() {
+            return String::new();
+        }
+        for _ in 0..count.max(1) {
+            let index = (next() as usize) % bytes.len();
+            let pick = (next() as usize) % NOISE.len();
+            bytes[index] = NOISE[pick];
+        }
+        String::from_utf8(bytes).unwrap_or_default()
+    }
+
+    /// A corrupted manifest must fail clearly: never panic, and never produce a half-read
+    /// file that looks usable.
+    #[test]
+    fn corrupted_manifests_never_panic() {
+        let mut parsed = 0;
+        let mut rejected = 0;
+
+        for seed in 0..200 {
+            for count in [1, 4, 16] {
+                let candidate = mutate(SAMPLE, seed, count);
+
+                let outcome = std::panic::catch_unwind(|| parse(&candidate));
+                let result = outcome.unwrap_or_else(|_| panic!("parse panicked, seed {seed}"));
+
+                match result {
+                    Ok(manifest) => {
+                        parsed += 1;
+                        // Whatever parsed must also survive validation, or a file could
+                        // be accepted and then rejected with a panic.
+                        let validation = std::panic::catch_unwind(|| manifest.validate());
+                        let diagnostics = validation.unwrap_or_else(|_| {
+                            panic!("validate panicked on a parsed manifest, seed {seed}")
+                        });
+                        for diagnostic in &diagnostics {
+                            assert!(!diagnostic.message().is_empty(), "seed {seed}");
+                        }
+                    }
+                    Err(diagnostic) => {
+                        rejected += 1;
+                        assert!(
+                            !diagnostic.message().trim().is_empty(),
+                            "a parse failure must say something, seed {seed}"
+                        );
+                        assert!(diagnostic.help().is_some(), "seed {seed}: {diagnostic}");
+                    }
+                }
+            }
+        }
+
+        // If every mutation still parsed, the generator would be testing nothing.
+        assert!(
+            rejected > 0,
+            "every corruption parsed cleanly ({parsed} accepted); mutations are too gentle"
+        );
+    }
+
+    /// A truncated manifest must fail rather than read as a shorter, different project.
+    #[test]
+    fn truncated_manifests_never_panic() {
+        for cut in 0..SAMPLE.len() {
+            let truncated = &SAMPLE[..cut];
+            let outcome = std::panic::catch_unwind(|| parse(truncated));
+            let result = outcome.unwrap_or_else(|_| panic!("parse panicked at cut {cut}"));
+
+            if let Ok(manifest) = result {
+                // Not every truncation is an error — cutting the trailing newline leaves a
+                // perfectly good file — so the assertion is the one that actually holds:
+                // if a truncation validates clean, what it produced must be the whole
+                // manifest. Anything else means a partial file was read as a complete one.
+                if manifest.validate().is_empty() {
+                    assert_eq!(
+                        manifest,
+                        parse(SAMPLE).expect("the reference manifest parses"),
+                        "a manifest cut at byte {cut} validated clean but was not the full file"
+                    );
+                }
+            }
+        }
+    }
 }
