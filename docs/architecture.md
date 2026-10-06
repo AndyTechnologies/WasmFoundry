@@ -167,6 +167,23 @@ version in `Cargo.lock`, so a patch release lands by ordinary means rather than 
 edit. Nightly is not used, and the MSRV is whatever the heaviest dependency actually
 requires — currently 1.96, imposed by `wasmtime` 49.
 
+### Why the manifest is parsed outside the domain
+
+```text
+wasmfoundry.toml
+    ↓  wf-cli reads and parses (toml, serde)
+Manifest          plain data: schema, package, project, modules
+    ↓  wf-core validates (pure rules)
+Vec<Diagnostic>   every structural problem, with advice
+    ↓  wf-cli resolves toolchains and files
+artifacts in target/
+```
+
+The split keeps the domain free of a format dependency while still making the rules
+shared. It also keeps the failure modes distinct: a syntax error and a structurally
+unusable manifest are reported as the same code but with different messages, because they
+are fixed by different edits.
+
 ### Why the error type has one variant per cause
 
 A run can fail for five unrelated reasons, and each one is fixed by a different action:
@@ -187,6 +204,24 @@ Every message is built by walking the error's cause chain. Wasmtime reports the 
 first — `error while executing at wasm backtrace:` — and the reason one level down.
 Taking only the top of the chain would print a backtrace header with no fault in it, which
 is the generic failure the plan forbids with different words.
+
+## Who owns the project pipeline
+
+`wf init` and `wf build` parse the manifest, validate it and publish artifacts. All three
+live in `wf-cli`, and that is a deliberate, reversible choice rather than an endorsement:
+
+- **Parsing stays in the CLI** because `wf-core` has no dependencies and may not learn
+  what a TOML table looks like. The CLI reads the file and hands the domain plain data.
+- **Validation stays in the domain** because whether a manifest *means something usable*
+  is a rule, and rules belong where every command can share them.
+- **Orchestration sits in the CLI for now** because there is no second consumer of it, and
+  §5 forbids a crate boundary without one. When `wf-toolchains` arrives (PHASE 10) or a
+  cache needs to reason about build steps (PHASE 12), the pipeline moves out and `wf-cli`
+  returns to argument parsing and output only.
+
+The `Toolchain` trait is likewise not here yet: PHASE 5 has exactly one toolchain, and a
+trait with one implementation draws a boundary nothing has crossed. It lands in PHASE 6 as
+the second implementation arrives.
 
 ## Toolchains
 

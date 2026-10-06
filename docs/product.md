@@ -50,7 +50,7 @@ Each phase delivers one observable capability and must pass its gate before the 
 | 2 | Rust workspace, four crates, documentation | ✅ |
 | 3 | `wf inspect` — analyse a binary without running it | ✅ imports, exports, memory, tables, globals, core vs component |
 | 4 | `wf run` — execute a core module | ✅ Engine → Module → Store → Linker → entry, no WASI |
-| 5 | `wf init`, `wf build` for precompiled wasm | project concept, `wasmfoundry.toml` |
+| 5 | `wf init`, `wf build` for precompiled wasm | ✅ project concept, `wasmfoundry.toml` |
 | 6 | Rust guest toolchain | Rust source → wasm → run |
 | 7 | Dependency graph, module matching | module A imports module B, both run |
 | 8 | Host ABI v1 | documented namespaces, signatures, ownership |
@@ -105,6 +105,11 @@ environment and host process execution are all granted explicitly, never inferre
 `build.rs`, compilers, package managers, and any script the project defines. Those
 processes run with the permissions of the user who invoked `wf build`. The Wasmtime
 sandbox does not protect against them, and the product never claims it does.
+
+PHASE 5 already has `wf build`. Today it copies a validated module into `target/` and
+runs no external process, so there is nothing yet to sandbox — but the moment a
+toolchain invokes `cargo` or a compiler (PHASE 6), everything in this paragraph becomes
+the operating rule rather than a warning about the future.
 
 A project whose sources you do not trust is a different risk class from a `.wasm` file
 you do not trust. `docs/security/threat-model.md` will classify each explicitly once it

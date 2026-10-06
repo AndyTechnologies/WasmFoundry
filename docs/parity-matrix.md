@@ -23,7 +23,7 @@ State values:
 | AssemblyScript | pending | preserve, behind a `Toolchain` adapter that owns `asc`, runtime selection, optimisation and source maps | 11 |
 | C++ | pending | preserve, behind a toolchain adapter; one backend for MVP, not five | 10 |
 | Rust guest | pending | preserve, core wasm and WASI as explicit separate paths | 6 |
-| Precompiled wasm | pending | preserve; the minimum adapter that proves the whole pipeline | 5 |
+| Precompiled wasm | done | preserved: `wf init` scaffolds one, `wf build` validates and publishes it, `wf run` executes it | 5 |
 
 ## Configuration
 
@@ -32,7 +32,7 @@ State values:
 | `moduleMatching=file-name` | pending | preserve as an explicit domain enum, never an implicit convention | 7 |
 | `moduleMatching=name-only` | pending | preserve as an explicit domain enum | 7 |
 | Per-toolchain configuration | pending | preserve, keyed by `ToolchainId` instead of toolchain-name conditionals | 6 |
-| Legacy `wapp.json` format | dropped | replaced by `wasmfoundry.toml` with an explicit `schema` version | 5 |
+| Legacy `wapp.json` format | done | replaced by `wasmfoundry.toml` with an explicit `schema` version; an unknown schema is rejected, never partially read | 5 |
 
 ## Runtime and host
 
@@ -70,6 +70,7 @@ State values:
 
 ## Status
 
-Every row above is `pending` or `dropped` because the rewrite has not reached those phases.
+`done` means implemented with tests. Rows still `pending` belong to phases the rewrite
+has not reached.
 The matrix is updated as each phase lands. No row may be marked `done` without a test
 that exercises the capability.

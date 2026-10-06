@@ -20,14 +20,18 @@
 //!
 //! # Current status
 //!
-//! `wf inspect` (PHASE 3) and `wf run` (PHASE 4). `inspect` never executes what it
-//! reads; `run` executes a core module with no WASI and no host ABI. A command that
-//! prints "not implemented" would be a lie shaped like a feature.
+//! `wf init` and `wf build` create and build a project (PHASE 5), `wf inspect` analyses
+//! a binary without executing it (PHASE 3) and `wf run` executes a core module with no
+//! WASI and no host ABI (PHASE 4). A command that prints "not implemented" would be a lie
+//! shaped like a feature.
 
 #![forbid(unsafe_code)]
 
+mod build;
 mod cli;
+mod init;
 mod inspect;
+mod manifest;
 mod run;
 
 /// The command succeeded.

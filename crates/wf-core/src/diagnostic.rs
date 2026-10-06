@@ -15,12 +15,18 @@ pub enum DiagnosticCode {
     InvalidWasm,
     /// `WF002` — an import has no provider.
     UnresolvedImport,
+    /// `WF004` — the toolchain a module asks for is not available.
+    MissingToolchain,
+    /// `WF004` covers both the toolchain this version does not implement and the
+    /// toolchain that is not installed; the message is what tells them apart.
     /// `WF005` — the requested entry point is not exported.
     MissingEntrypoint,
     /// `WF009` — the guest faulted while executing.
     RuntimeTrap,
     /// `WF010` — the entry point exists but cannot be invoked as written.
     EntrypointUnsuitable,
+    /// `WF011` — the manifest does not mean what it appears to mean.
+    InvalidManifest,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -28,9 +34,11 @@ impl fmt::Display for DiagnosticCode {
         f.write_str(match self {
             DiagnosticCode::InvalidWasm => "WF001",
             DiagnosticCode::UnresolvedImport => "WF002",
+            DiagnosticCode::MissingToolchain => "WF004",
             DiagnosticCode::MissingEntrypoint => "WF005",
             DiagnosticCode::RuntimeTrap => "WF009",
             DiagnosticCode::EntrypointUnsuitable => "WF010",
+            DiagnosticCode::InvalidManifest => "WF011",
         })
     }
 }

@@ -35,6 +35,15 @@ wf-core = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# Reading `wasmfoundry.toml`. Parsing is an interface concern: `wf-core` receives the
+# manifest already parsed as plain data and decides whether it is valid.
+toml = "1"
+
+# Assembling the sample module `wf init` scaffolds. The WebAssembly text is written in
+# `src/init.rs` where it can be read in review, rather than checked in as an opaque
+# binary fixture.
+wat = "1.238"
+
 [dev-dependencies]
 # Test-only: fixtures are assembled from readable WAT source, and end-to-end tests parse
 # the JSON the binary actually prints.

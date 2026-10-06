@@ -34,6 +34,10 @@ pub enum Command {
     Inspect(InspectArgs),
     /// Execute a WebAssembly core module.
     Run(RunArgs),
+    /// Create a new project.
+    Init(InitArgs),
+    /// Build the modules declared in the project manifest.
+    Build(BuildArgs),
 }
 
 /// Arguments of `wf inspect`.
@@ -50,13 +54,27 @@ pub struct InspectArgs {
 /// Arguments of `wf run`.
 #[derive(Debug, clap::Args)]
 pub struct RunArgs {
-    /// Path to the WebAssembly module to execute.
-    pub path: PathBuf,
+    /// Path to the WebAssembly module to execute. Omit it to run the project declared by
+    /// `wasmfoundry.toml` in the current directory.
+    #[arg(value_name = "MODULE")]
+    pub path: Option<PathBuf>,
 
     /// Guest export to invoke. Defaults to `_start`.
     #[arg(long)]
     pub entry: Option<String>,
 }
+
+/// Arguments of `wf init`.
+#[derive(Debug, clap::Args)]
+pub struct InitArgs {
+    /// Name of the project to create, and of its directory.
+    #[arg(value_name = "NAME")]
+    pub name: String,
+}
+
+/// Arguments of `wf build`.
+#[derive(Debug, clap::Args)]
+pub struct BuildArgs;
 
 /// Rendering of a command result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -81,5 +99,7 @@ pub fn run() -> i32 {
         }
         Some(Command::Inspect(args)) => crate::inspect::run(&args),
         Some(Command::Run(args)) => crate::run::run(&args),
+        Some(Command::Init(args)) => crate::init::run(&args),
+        Some(Command::Build(args)) => crate::build::run(&args),
     }
 }

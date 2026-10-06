@@ -74,8 +74,12 @@
 //! fewer fields than sketched here, or not at all, if the feature that needs
 //! it turns out not to require it.
 
+mod artifact;
 mod diagnostic;
 mod entry_point;
+mod manifest;
 
+pub use artifact::{Artifact, ArtifactId, ArtifactIdError, ArtifactKind};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use entry_point::{EntryPoint, EntryPointError};
+pub use manifest::{Manifest, ModuleSpec, Package, Project, SUPPORTED_SCHEMA};

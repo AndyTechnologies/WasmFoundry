@@ -4,16 +4,33 @@
 //! why it could not run. The runtime crate does the work; this module only reads the file,
 //! picks the entry point and maps the cause to a diagnostic code.
 
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use wf_core::{Diagnostic, EntryPoint, Severity};
 use wf_runtime::{Runtime, RuntimeError};
 
 use crate::cli::RunArgs;
+use crate::manifest::MANIFEST_FILE;
 use crate::{EXIT_DIAGNOSTIC, EXIT_OK, EXIT_USAGE};
+
+/// Directory published artifacts live in, as written by `wf build`.
+///
+/// Shared with `build` by value rather than by a module: two commands that must agree on
+/// a directory disagree in a way a compile error catches, which is cheaper than a shared
+/// abstraction for one string.
+const TARGET_DIR: &str = "target";
 
 /// Runs `wf run` and returns the process exit code.
 pub fn run(args: &RunArgs) -> i32 {
+    let path = match &args.path {
+        Some(path) => path.clone(),
+        None => match project_target() {
+            Ok(path) => path,
+            Err(code) => return code,
+        },
+    };
+
     let entry = match entry_point(args) {
         Ok(entry) => entry,
         Err(reason) => {
@@ -22,10 +39,10 @@ pub fn run(args: &RunArgs) -> i32 {
         }
     };
 
-    let bytes = match std::fs::read(&args.path) {
+    let bytes = match std::fs::read(&path) {
         Ok(bytes) => bytes,
         Err(error) => {
-            eprintln!("wf: cannot read {}: {error}", args.path.display());
+            eprintln!("wf: cannot read {}: {error}", path.display());
             return EXIT_USAGE;
         }
     };
@@ -40,7 +57,7 @@ pub fn run(args: &RunArgs) -> i32 {
         Ok(outcome) => {
             println!(
                 "wf: ran {} via {} in {}",
-                args.path.display(),
+                path.display(),
                 outcome.entry(),
                 format_duration(outcome.duration())
             );
@@ -55,6 +72,56 @@ pub fn run(args: &RunArgs) -> i32 {
         }
         Err(error) => failure(&error),
     }
+}
+
+/// Locates the artifact of the project in the current directory.
+///
+/// PHASE 5 has one module per project, so this needs no selection UI. A project with
+/// several modules gets told to name one — module selection belongs to PHASE 7, where
+/// the dependency graph decides which module is the root — and a project that has not
+/// been built yet is told to build it.
+fn project_target() -> Result<PathBuf, i32> {
+    if !Path::new(MANIFEST_FILE).exists() {
+        eprintln!("wf: no {MANIFEST_FILE} in this directory");
+        eprintln!("  help: pass a path to a module, or run `wf init <name>` to create a project");
+        return Err(EXIT_USAGE);
+    }
+
+    let manifest = match crate::manifest::read(Path::new(MANIFEST_FILE)) {
+        Ok(manifest) => manifest,
+        Err(diagnostic) => {
+            eprintln!("{diagnostic}");
+            return Err(EXIT_DIAGNOSTIC);
+        }
+    };
+
+    let diagnostics = manifest.validate();
+    if !diagnostics.is_empty() {
+        for diagnostic in &diagnostics {
+            eprintln!("{diagnostic}");
+        }
+        return Err(EXIT_DIAGNOSTIC);
+    }
+
+    let name = if manifest.modules.len() == 1 {
+        manifest.modules[0].name.clone()
+    } else {
+        eprintln!(
+            "wf: this project declares {} modules; say which one to run",
+            manifest.modules.len()
+        );
+        eprintln!("  help: wf run target/<module>.wasm");
+        return Err(EXIT_USAGE);
+    };
+
+    let target = PathBuf::from(TARGET_DIR).join(format!("{name}.wasm"));
+    if !target.exists() {
+        eprintln!("wf: {} has not been built yet", target.display());
+        eprintln!("  help: run `wf build` first");
+        return Err(EXIT_USAGE);
+    }
+
+    Ok(target)
 }
 
 /// Resolves the entry point from the argument, or the default.

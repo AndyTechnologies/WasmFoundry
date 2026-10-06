@@ -8,9 +8,9 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 4.** `wf inspect` analyses a WebAssembly binary without executing it,
-> and `wf run` executes a core module. Both are usable. Everything else is still ahead —
-> see [Status](#status).
+> **Status: PHASE 5.** A project works end to end: `wf init` scaffolds one, `wf build`
+> publishes its precompiled module, `wf run` executes it, and `wf inspect` reports what
+> is inside. Everything else is still ahead — see [Status](#status).
 
 ---
 
@@ -98,16 +98,46 @@ cargo test --workspace
 ## Usage
 
 ```bash
-# Analyse a binary and print a report for a human.
-wf inspect app.wasm
+# Create a project. It scaffolds a manifest, a source directory and a sample module.
+wf init hello
+cd hello
 
-# The same analysis as JSON, for other tools to consume.
-wf inspect app.wasm --format json
+# Publish the declared module into target/. Sources are precompiled WebAssembly: nothing
+# is compiled yet, so no guest toolchain is required.
+wf build
 
-# Execute a core module. The entry point defaults to _start.
-wf run app.wasm
-wf run app.wasm --entry main
+# Execute the project's built module, or any path directly.
+wf run
+wf run target/hello.wasm
+wf run target/hello.wasm --entry main
+
+# Analyse any binary without executing it, for a human or as JSON for other tools.
+wf inspect target/hello.wasm
+wf inspect target/hello.wasm --format json
 ```
+
+A project is one file, `wasmfoundry.toml`:
+
+```toml
+schema = 1
+
+[package]
+name = "hello"
+version = "0.1.0"
+
+[project]
+source_dir = "src"
+entry = "_start"
+
+[[module]]
+name = "hello"
+source = "src/hello.wasm"
+toolchain = "precompiled"
+```
+
+A manifest whose `schema` this version does not know is rejected outright: it is never
+partially interpreted, because fields shared between two schemas may have changed meaning.
+Unknown table and field names are also rejected, so a typo cannot silently do nothing.
 
 ```
 $ wf inspect app.wasm
@@ -153,9 +183,11 @@ Diagnostic codes, also stable:
 | --- | --- |
 | `WF001` | The input is not a compilable WebAssembly module |
 | `WF002` | An import has no provider |
+| `WF004` | The toolchain a module asks for is not available |
 | `WF005` | The requested entry point is not exported |
 | `WF009` | The guest faulted while executing |
 | `WF010` | The entry point exists but cannot be invoked as written |
+| `WF011` | The manifest does not mean what it appears to mean |
 
 A guest returning a value from its entry point is reported as output, not converted into
 this process's exit code: that mapping is a host-ABI decision, and the host ABI arrives in
@@ -174,7 +206,7 @@ and must pass its gate before the next begins.
 | 2 | Rust workspace, four crates, documentation | ✅ current |
 | 3 | `wf inspect` | ✅ done |
 | 4 | `wf run` | pending |
-| 5 | `wf init`, `wf build` for precompiled wasm | pending |
+| 5 | `wf init`, `wf build` for precompiled wasm | ✅ done |
 | 6 | Rust guest toolchain | pending |
 | 7 | Dependency graph and module matching | pending |
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | pending |

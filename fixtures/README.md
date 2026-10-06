@@ -63,3 +63,15 @@ The `imports/` and `cycles/` subdirectories arrive with PHASE 7, when module mat
 and the dependency graph need cases they can be tested against. The `entry/` and
 `runtime/` subdirectories describe PHASE 4's failure modes; `wf run`'s end-to-end tests
 assemble these same cases inline so the assertions and the fixtures stay in step.
+
+## Where project fixtures live
+
+`projects/` is intentionally still empty. A project fixture is a directory containing a
+manifest and at least one `.wasm`, and checking in the binary would put an opaque blob
+back into a tree whose rule is that sources are readable. The end-to-end tests in
+`crates/wf-cli/tests/project.rs` therefore create each project from a WAT string in a
+temporary directory, so every asserted file is visible in the test that produced it.
+
+A committed project fixture becomes worth having when a fixture needs to survive across
+runs — a malformed manifest, or a bundle payload — because those cannot be assembled on
+the fly.
