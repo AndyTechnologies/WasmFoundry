@@ -7,13 +7,10 @@
 pub mod dto;
 pub mod human;
 
+use wf_core::{Diagnostic, DiagnosticCode, Severity};
+
 use crate::cli::{InspectArgs, OutputFormat};
 use crate::{EXIT_DIAGNOSTIC, EXIT_OK};
-
-/// Exit code for an input that is not a readable WebAssembly binary.
-///
-/// Stable once published: a script may branch on it.
-const WF001: &str = "WF001";
 
 /// Runs `wf inspect` and returns the process exit code.
 pub fn run(args: &InspectArgs) -> i32 {
@@ -30,7 +27,14 @@ pub fn run(args: &InspectArgs) -> i32 {
     let analysis = match wf_wasm::analyze(&bytes) {
         Ok(analysis) => analysis,
         Err(error) => {
-            eprintln!("{WF001}: {error}");
+            // The code is part of the published contract: `WF001` for any input that is
+            // not a compilable module, whatever the parser found wrong with it.
+            let diagnostic = Diagnostic::new(
+                DiagnosticCode::InvalidWasm,
+                Severity::Error,
+                error.to_string(),
+            );
+            eprintln!("{diagnostic}");
             return EXIT_DIAGNOSTIC;
         }
     };

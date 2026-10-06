@@ -37,10 +37,11 @@
 //! feature, not before.
 //!
 //! - `Diagnostic` — a machine-readable problem (code, severity, message,
-//!   location) that every layer can produce and every layer can format.
-//!   **Not introduced yet**: PHASE 3 produced exactly one diagnostic (`WF001`)
-//!   and it lives in the CLI as a constant, because a second producer does not
-//!   exist. This type lands with the first layer that has to share one.
+//!   help) that every layer can produce and every layer can format.
+//!   **Introduced in PHASE 4** ([`Diagnostic`]), so that the codes printed by
+//!   the CLI stop being private constants of one command. Its shape stays at
+//!   code, severity, message and help; `source`, `location` and `related` are
+//!   added when a layer actually reports positions.
 //! - `EntryPoint` — the guest-export contract a runtime invocation starts at,
 //!   separating exported symbol names from a raw string.
 //!   **Introduced in PHASE 4** ([`EntryPoint`]), the first type of this roadmap
@@ -73,6 +74,8 @@
 //! fewer fields than sketched here, or not at all, if the feature that needs
 //! it turns out not to require it.
 
+mod diagnostic;
 mod entry_point;
 
+pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use entry_point::{EntryPoint, EntryPointError};

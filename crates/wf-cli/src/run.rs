@@ -6,30 +6,11 @@
 
 use std::time::Duration;
 
-use wf_core::EntryPoint;
+use wf_core::{Diagnostic, EntryPoint, Severity};
 use wf_runtime::{Runtime, RuntimeError};
 
 use crate::cli::RunArgs;
 use crate::{EXIT_DIAGNOSTIC, EXIT_OK, EXIT_USAGE};
-
-/// Diagnostic codes printed for a failed run.
-///
-/// `WF001`, `WF002`, `WF005` and `WF009` come from the code table in the plan.
-/// `WF010` is new: the plan has no code for an entry point that exists but cannot be
-/// invoked as written, and conflating it with `WF005` would report a missing export for
-/// a module that has one. All codes are stable once published.
-mod codes {
-    /// The input is not a compilable WebAssembly module.
-    pub const INVALID_WASM: &str = "WF001";
-    /// An import has no provider.
-    pub const UNRESOLVED_IMPORT: &str = "WF002";
-    /// The requested entry point is not exported.
-    pub const MISSING_ENTRYPOINT: &str = "WF005";
-    /// The guest faulted while executing.
-    pub const RUNTIME_TRAP: &str = "WF009";
-    /// The entry point exists but cannot be invoked as written.
-    pub const ENTRYPOINT_UNSUITABLE: &str = "WF010";
-}
 
 /// Runs `wf run` and returns the process exit code.
 pub fn run(args: &RunArgs) -> i32 {
@@ -52,7 +33,7 @@ pub fn run(args: &RunArgs) -> i32 {
     let runtime = Runtime::default();
     let module = match runtime.compile(&bytes) {
         Ok(module) => module,
-        Err(error) => return failure(codes::INVALID_WASM, &error),
+        Err(error) => return failure(&error),
     };
 
     match runtime.run(&module, &entry) {
@@ -72,19 +53,7 @@ pub fn run(args: &RunArgs) -> i32 {
             }
             EXIT_OK
         }
-        Err(error) => {
-            let code = match &error {
-                RuntimeError::Link { .. } => codes::UNRESOLVED_IMPORT,
-                RuntimeError::MissingExport { .. } => codes::MISSING_ENTRYPOINT,
-                RuntimeError::Trap { .. } => codes::RUNTIME_TRAP,
-                RuntimeError::Configuration { .. } => codes::ENTRYPOINT_UNSUITABLE,
-                // Unreachable: compilation already succeeded above, so `InvalidWasm`
-                // cannot be produced here. Falling through keeps the match exhaustive
-                // without pretending the case exists.
-                RuntimeError::InvalidWasm { .. } => codes::INVALID_WASM,
-            };
-            failure(code, &error)
-        }
+        Err(error) => failure(&error),
     }
 }
 
@@ -98,8 +67,11 @@ fn entry_point(args: &RunArgs) -> Result<EntryPoint, String> {
 }
 
 /// Prints a diagnostic and returns the diagnostic exit code.
-fn failure(code: &str, error: &RuntimeError) -> i32 {
-    eprintln!("{code}: {error}");
+fn failure(error: &RuntimeError) -> i32 {
+    // The code comes from the runtime that produced the cause; building the diagnostic
+    // here only decides severity and output.
+    let diagnostic = Diagnostic::new(error.code(), Severity::Error, error.to_string());
+    eprintln!("{diagnostic}");
     EXIT_DIAGNOSTIC
 }
 

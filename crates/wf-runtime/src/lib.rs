@@ -54,7 +54,7 @@ use std::time::{Duration, Instant};
 
 use wasmtime::{Error as WasmError, Extern, Linker, Module as WasmtimeModule, Store, ValType};
 
-use wf_core::EntryPoint;
+use wf_core::{DiagnosticCode, EntryPoint};
 
 /// Executes WebAssembly binaries.
 ///
@@ -145,6 +145,22 @@ pub enum RuntimeError {
         /// What the export actually is, and what the runtime supports.
         message: String,
     },
+}
+
+impl RuntimeError {
+    /// The published code for this cause.
+    ///
+    /// The runtime knows which cause it produced, so the mapping lives here rather than
+    /// in whichever command happens to print it.
+    pub fn code(&self) -> DiagnosticCode {
+        match self {
+            RuntimeError::InvalidWasm { .. } => DiagnosticCode::InvalidWasm,
+            RuntimeError::Link { .. } => DiagnosticCode::UnresolvedImport,
+            RuntimeError::MissingExport { .. } => DiagnosticCode::MissingEntrypoint,
+            RuntimeError::Trap { .. } => DiagnosticCode::RuntimeTrap,
+            RuntimeError::Configuration { .. } => DiagnosticCode::EntrypointUnsuitable,
+        }
+    }
 }
 
 impl fmt::Display for RuntimeError {
