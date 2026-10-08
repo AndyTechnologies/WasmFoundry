@@ -65,11 +65,14 @@
 //!   host triple so the two can never be one field. **Introduced in PHASE 6**
 //!   ([`GuestTarget`]); a host target arrives with bundling in PHASE 14.
 //! - `ModuleId` — identity of a wasm module inside a project, needed before
-//!   module-name matching can be resolved. PHASE 7.
+//!   module-name matching can be resolved.
+//!   **Introduced in PHASE 7** ([`ModuleId`]).
 //! - `Dependency` — a directed edge from one module to another, carrying the
-//!   reason the edge exists. PHASE 7.
+//!   reason the edge exists.
+//!   **Introduced in PHASE 7** ([`Dependency`]).
 //! - `DependencyGraph` — the pure graph structure plus traversal rules:
-//!   roots, leaves, topological order and cycle detection. PHASE 7.
+//!   roots, leaves, topological order and cycle detection.
+//!   **Introduced in PHASE 7** ([`DependencyGraph`]).
 //! - `RuntimePolicy` — the set of capabilities a guest invocation is allowed
 //!   (WASI, mounts, host ABI), validated independently of any engine. PHASE 9.
 //! - `Fingerprint` — the content-derived identity of a build input, used by
@@ -82,13 +85,17 @@
 mod artifact;
 mod diagnostic;
 mod entry_point;
+mod graph;
 mod manifest;
+mod matching;
 mod name_error;
 mod toolchain;
 
 pub use artifact::{Artifact, ArtifactId, ArtifactKind};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use entry_point::EntryPoint;
+pub use graph::{Dependency, DependencyGraph, GraphError, ModuleId};
 pub use manifest::{Manifest, ModuleSpec, Package, Project, SUPPORTED_SCHEMA};
+pub use matching::{ModuleMatching, ParseModuleMatchingError, ResolveError, resolve_module};
 pub use name_error::NameError;
 pub use toolchain::{GuestTarget, ToolchainId};
