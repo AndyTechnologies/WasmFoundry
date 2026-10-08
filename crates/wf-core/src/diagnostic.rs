@@ -27,6 +27,8 @@ pub enum DiagnosticCode {
     EntrypointUnsuitable,
     /// `WF011` — the manifest does not mean what it appears to mean.
     InvalidManifest,
+    /// `WF012` — a toolchain ran and did not produce a module.
+    ToolchainFailed,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -39,6 +41,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::RuntimeTrap => "WF009",
             DiagnosticCode::EntrypointUnsuitable => "WF010",
             DiagnosticCode::InvalidManifest => "WF011",
+            DiagnosticCode::ToolchainFailed => "WF012",
         })
     }
 }

@@ -89,9 +89,12 @@ every `.wasm` is trusted.
   naming `toolchain = "rust"` makes the CLI run `cargo`. Trusting the manifest's
   toolchain field is equivalent to trusting the project.
 
-**Decision point for PHASE 6:** whether a manifest may name a toolchain that resolves to
-an arbitrary binary path. If yes, the manifest is executable in effect and class C
-applies to it directly.
+**Resolved in PHASE 6:** the manifest's `toolchain` field resolves through one `match`
+in `wf-cli/src/toolchains/mod.rs` to a toolchain this version implements. It never
+resolves to a path, never to a shell string, and there is no way to write a manifest that
+makes `wf build` start an arbitrary program. A name the match does not know is refused
+with `WF004` listing what does exist. The manifest therefore decides *which known
+toolchain* runs, not *what runs*.
 
 ---
 
@@ -110,9 +113,13 @@ custom compiler scripts, cmake, shell commands
 
 | Status | |
 | --- | --- |
-| Not sandboxed today | `wf build` copies and validates; it runs no external process yet |
-| **Not sandboxed after PHASE 6** | invoking `cargo` for a Rust guest executes `build.rs` as the invoking user |
+| Not sandboxed | `wf build` runs `cargo` for a Rust guest, which executes `build.rs` as the invoking user |
 | Never sandboxed by Wasmtime | the runtime sandbox is not consulted during a build at all |
+| Reachable from a manifest | a `toolchain = "rust"` module makes `cargo` run; see class B for what that field may name |
+
+**Active since PHASE 6.** Building a Rust project executes the crate's build script, and
+a build script is arbitrary code. The boundary below is now a description of the shipped
+product rather than a warning about a future one.
 
 **The honest statement for users:**
 
@@ -209,6 +216,6 @@ and `toml` are all trusted to behave. They are pinned by `Cargo.lock` and review
 
 ## Maintaining this document
 
-Every phase that changes a trust boundary updates this file in the same commit. The
-sections that are expected to change are: A (limits and host ABI in PHASE 8–9), B (toolchain
-resolution in PHASE 6), C (build execution in PHASE 6), E (PHASE 14–16).
+Every phase that changes a trust boundary updates this file in the same commit. As of
+PHASE 6: A has lost its "no limits" note only when PHASE 9 lands, B's decision is closed,
+C is live, and E remains future work for PHASE 14–16.

@@ -214,14 +214,45 @@ live in `wf-cli`, and that is a deliberate, reversible choice rather than an end
   what a TOML table looks like. The CLI reads the file and hands the domain plain data.
 - **Validation stays in the domain** because whether a manifest *means something usable*
   is a rule, and rules belong where every command can share them.
-- **Orchestration sits in the CLI for now** because there is no second consumer of it, and
-  §5 forbids a crate boundary without one. When `wf-toolchains` arrives (PHASE 10) or a
-  cache needs to reason about build steps (PHASE 12), the pipeline moves out and `wf-cli`
+- **Orchestration sits in the CLI for now** because no other crate consumes it yet. When
+  a cache needs to reason about build steps (PHASE 12), the pipeline moves out and `wf-cli`
   returns to argument parsing and output only.
 
-The `Toolchain` trait is likewise not here yet: PHASE 5 has exactly one toolchain, and a
-trait with one implementation draws a boundary nothing has crossed. It lands in PHASE 6 as
-the second implementation arrives.
+## Toolchains
+
+```text
+[[module]] toolchain = "rust"
+        ↓
+wf_core::ToolchainId          domain identity for the manifest's value
+        ↓
+toolchains::lookup(&id)       one `match`, the only place names become implementations
+        ↓
+dyn Toolchain
+   ├── detect(&request) -> Detection       can this toolchain handle the source?
+   └── compile(&request) -> CompileResult  publish a validated artifact
+        ↓
+publish(root, name, bytes, detail)         shared: read, validate, copy
+```
+
+**The trait has two implementations, and that is why it exists.** `precompiled` shipped in
+PHASE 5 as a direct code path; `rust` is the second consumer. A trait drawn around a single
+implementation would have been a boundary nothing crossed.
+
+**Two toolchains, one crate — deliberately.** `AGENTS.md`'s rule says a second
+implementation *justifies* a crate boundary; it does not require one. The plan creates
+`wf-toolchains` at PHASE 10 (C++), and moving two short adapters into a new crate before
+then is churn without a consumer. **The extraction trigger is PHASE 10**: when a toolchain
+needs its own dependency surface (sysroots, `clang`, `zig`), the module moves and `wf-cli`
+keeps only parsing and output.
+
+**`toolchains::lookup` is a security boundary, not a dispatch table.** It is the only place
+a manifest's `toolchain` string becomes an implementation, and it never maps to a path or a
+program. That is what stops a manifest from being executable — see
+[`security/threat-model.md`](security/threat-model.md), class B.
+
+**`ProcessRunner`** exists so the `cargo` command line can be asserted without running
+`cargo`. One trait, one implementation (`StdRunner`), no process hierarchy: environment,
+redirection and timeouts arrive when a toolchain actually needs them.
 
 ## Toolchains
 

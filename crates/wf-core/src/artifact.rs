@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use crate::NameError;
+
 /// Identity of an artifact within a project.
 ///
 /// A name rather than a path: the graph, a cache entry and a build report all refer to
@@ -17,9 +19,9 @@ impl ArtifactId {
     ///
     /// Rejects an empty name: an artifact nothing can refer to has no use, and finding
     /// that out here is cheaper than finding it out from a cache lookup.
-    pub fn new(name: &str) -> Result<Self, ArtifactIdError> {
+    pub fn new(name: &str) -> Result<Self, NameError> {
         if name.is_empty() {
-            return Err(ArtifactIdError);
+            return Err(NameError::new("artifact name"));
         }
         Ok(ArtifactId {
             name: name.to_owned(),
@@ -37,18 +39,6 @@ impl fmt::Display for ArtifactId {
         f.write_str(&self.name)
     }
 }
-
-/// Why an artifact identity could not be built.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ArtifactIdError;
-
-impl fmt::Display for ArtifactIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("the artifact name must not be empty")
-    }
-}
-
-impl std::error::Error for ArtifactIdError {}
 
 /// What an artifact is.
 ///

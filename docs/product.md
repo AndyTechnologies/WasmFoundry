@@ -51,7 +51,7 @@ Each phase delivers one observable capability and must pass its gate before the 
 | 3 | `wf inspect` — analyse a binary without running it | ✅ imports, exports, memory, tables, globals, core vs component |
 | 4 | `wf run` — execute a core module | ✅ Engine → Module → Store → Linker → entry, no WASI |
 | 5 | `wf init`, `wf build` for precompiled wasm | ✅ project concept, `wasmfoundry.toml` |
-| 6 | Rust guest toolchain | Rust source → wasm → run |
+| 6 | Rust guest toolchain | ✅ Rust source → wasm → run |
 | 7 | Dependency graph, module matching | module A imports module B, both run |
 | 8 | Host ABI v1 | documented namespaces, signatures, ownership |
 | 9 | WASI, mounts, capability policy, execution limits | denied by default, granted explicitly, bounded execution |
@@ -106,10 +106,11 @@ environment and host process execution are all granted explicitly, never inferre
 processes run with the permissions of the user who invoked `wf build`. The Wasmtime
 sandbox does not protect against them, and the product never claims it does.
 
-PHASE 5 already has `wf build`. Today it copies a validated module into `target/` and
-runs no external process, so there is nothing yet to sandbox — but the moment a
-toolchain invokes `cargo` or a compiler (PHASE 6), everything in this paragraph becomes
-the operating rule rather than a warning about the future.
+Since PHASE 6, `wf build` invokes `cargo`, so building a Rust project executes its
+`build.rs` with the permissions of the user who ran `wf build`. Nothing about that is
+sandboxed, and the runtime sandbox is not consulted during a build at all. What the
+manifest *can* say is bounded: `toolchain` resolves to a toolchain this version knows,
+never to a program or a path.
 
 A project whose sources you do not trust is a different risk class from a `.wasm` file
 you do not trust. `docs/security/threat-model.md` will classify each explicitly once it

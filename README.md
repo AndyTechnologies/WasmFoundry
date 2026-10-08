@@ -8,9 +8,9 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 5.** A project works end to end: `wf init` scaffolds one, `wf build`
-> publishes its precompiled module, `wf run` executes it, and `wf inspect` reports what
-> is inside. Everything else is still ahead — see [Status](#status).
+> **Status: PHASE 6.** Two guest toolchains: a precompiled module is validated and
+> published, and a Rust crate is compiled to WebAssembly by `cargo`. `wf run` executes
+> either. Everything else is still ahead — see [Status](#status).
 
 ---
 
@@ -116,7 +116,23 @@ wf inspect target/hello.wasm
 wf inspect target/hello.wasm --format json
 ```
 
-A project is one file, `wasmfoundry.toml`:
+A Rust guest needs the guest target installed once:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+and a module declared against it:
+
+```toml
+[[module]]
+name = "hello"
+source = "guest"          # the directory holding Cargo.toml
+toolchain = "rust"
+```
+
+The crate must declare `[lib] crate-type = ["cdylib"]`, which is what makes `cargo` emit a
+WebAssembly module. A project is otherwise one file, `wasmfoundry.toml`:
 
 ```toml
 schema = 1
@@ -188,6 +204,7 @@ Diagnostic codes, also stable:
 | `WF009` | The guest faulted while executing |
 | `WF010` | The entry point exists but cannot be invoked as written |
 | `WF011` | The manifest does not mean what it appears to mean |
+| `WF012` | A toolchain ran and did not produce a module |
 
 A guest returning a value from its entry point is reported as output, not converted into
 this process's exit code: that mapping is a host-ABI decision, and the host ABI arrives in
@@ -207,7 +224,7 @@ and must pass its gate before the next begins.
 | 3 | `wf inspect` | ✅ done |
 | 4 | `wf run` | pending |
 | 5 | `wf init`, `wf build` for precompiled wasm | ✅ done |
-| 6 | Rust guest toolchain | pending |
+| 6 | Rust guest toolchain | ✅ done |
 | 7 | Dependency graph and module matching | pending |
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | pending |
 | 10–11 | C++ and AssemblyScript toolchains | pending |

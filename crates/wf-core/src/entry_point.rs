@@ -1,8 +1,9 @@
 //! The export a guest invocation starts at.
 
-use std::error::Error as StdError;
 use std::fmt;
 use std::str::FromStr;
+
+use crate::NameError;
 
 /// The entry point a runtime invocation begins at.
 ///
@@ -22,11 +23,9 @@ impl EntryPoint {
     ///
     /// Returns an error for an empty name: no module exports an empty name, so
     /// constructing one only delays the failure to a point where the message is worse.
-    pub fn new(name: &str) -> Result<Self, EntryPointError> {
+    pub fn new(name: &str) -> Result<Self, NameError> {
         if name.is_empty() {
-            return Err(EntryPointError {
-                reason: "the entry point name must not be empty",
-            });
+            return Err(NameError::new("entry point name"));
         }
         Ok(EntryPoint {
             name: name.to_owned(),
@@ -56,33 +55,12 @@ impl fmt::Display for EntryPoint {
 }
 
 impl FromStr for EntryPoint {
-    type Err = EntryPointError;
+    type Err = NameError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         EntryPoint::new(value)
     }
 }
-
-/// Why an entry point could not be constructed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EntryPointError {
-    reason: &'static str,
-}
-
-impl EntryPointError {
-    /// The reason the name was rejected.
-    pub fn reason(&self) -> &'static str {
-        self.reason
-    }
-}
-
-impl fmt::Display for EntryPointError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.reason)
-    }
-}
-
-impl StdError for EntryPointError {}
 
 #[cfg(test)]
 mod tests {

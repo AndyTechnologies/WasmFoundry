@@ -1,0 +1,13 @@
+# Guest fixture for PHASE 6: proves the Rust toolchain compiles a real crate to
+# WebAssembly without depending on the host build.
+#
+# `crate-type = ["cdylib"]` is what makes cargo emit a .wasm instead of an rlib. Without
+# it there is no artifact to publish, and `wf build` reports exactly that.
+[package]
+name = "hello-guest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]

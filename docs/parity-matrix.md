@@ -22,7 +22,7 @@ State values:
 | --- | --- | --- | --- |
 | AssemblyScript | pending | preserve, behind a `Toolchain` adapter that owns `asc`, runtime selection, optimisation and source maps | 11 |
 | C++ | pending | preserve, behind a toolchain adapter; one backend for MVP, not five | 10 |
-| Rust guest | pending | preserve, core wasm and WASI as explicit separate paths | 6 |
+| Rust guest | done | preserved for core wasm: `wf build` invokes `cargo` for `wasm32-unknown-unknown`; WASI stays a separate explicit path (PHASE 9) | 6 |
 | Precompiled wasm | done | preserved: `wf init` scaffolds one, `wf build` validates and publishes it, `wf run` executes it | 5 |
 
 ## Configuration

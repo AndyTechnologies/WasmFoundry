@@ -191,12 +191,15 @@ fn build_reports_a_manifest_that_declares_an_absent_source() {
     );
 }
 
+/// The name here has to be one this version genuinely does not implement.
+/// `rust` used to stand in for that and became real in PHASE 6, which is
+/// exactly how a fixture for "does not exist" rots.
 #[test]
 fn build_rejects_a_toolchain_this_version_does_not_have() {
-    let project = Project::new("rust");
-    write_source(&project, "rust.wasm", "(module (func (export \"_start\")))");
+    let project = Project::new("cpp");
+    write_source(&project, "cpp.wasm", "(module (func (export \"_start\")))");
     let manifest_text =
-        manifest("rust").replace("toolchain = \"precompiled\"", "toolchain = \"rust\"");
+        manifest("cpp").replace("toolchain = \"precompiled\"", "toolchain = \"cpp\"");
     std::fs::write(project.root.join("wasmfoundry.toml"), manifest_text).expect("writable");
 
     let built = project.wf(&["build"]);
@@ -206,9 +209,11 @@ fn build_rejects_a_toolchain_this_version_does_not_have() {
         message.contains("WF004"),
         "missing toolchain is WF004: {message}"
     );
-    assert!(message.contains("`rust`"), "{message}");
-    // It must not be confused with a missing file.
+    assert!(message.contains("`cpp`"), "{message}");
+    // It must not be confused with a missing file: the two are fixed by
+    // different actions.
     assert!(!message.contains("cannot be read"), "{message}");
+    assert!(!project.root.join("target/cpp.wasm").exists());
 }
 
 #[test]

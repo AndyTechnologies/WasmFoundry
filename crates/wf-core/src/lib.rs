@@ -46,6 +46,10 @@
 //!   separating exported symbol names from a raw string.
 //!   **Introduced in PHASE 4** ([`EntryPoint`]), the first type of this roadmap
 //!   to exist.
+//!
+//! Four identities — [`EntryPoint`], [`ArtifactId`], [`ToolchainId`] and
+//! [`GuestTarget`] — share [`NameError`] for their single failure mode, so the
+//! message a user reads cannot drift between them.
 //! - `Artifact` — the logical result of a build step, independent of where its
 //!   bytes are stored. PHASE 5.
 //! - `ArtifactId` — stable identity of an `Artifact` inside a graph, so
@@ -56,9 +60,10 @@
 //!   source maps) without naming a concrete toolchain flag. PHASE 5.
 //! - `ToolchainId` — identity of a guest toolchain, so per-toolchain
 //!   configuration never becomes toolchain-specific conditionals in the
-//!   domain. PHASE 6.
-//! - `Target` — a normalised guest target triple, independent of any host.
-//!   PHASE 6.
+//!   domain. **Introduced in PHASE 6** ([`ToolchainId`]).
+//! - `GuestTarget` — a guest target triple, kept out of the same type as a
+//!   host triple so the two can never be one field. **Introduced in PHASE 6**
+//!   ([`GuestTarget`]); a host target arrives with bundling in PHASE 14.
 //! - `ModuleId` — identity of a wasm module inside a project, needed before
 //!   module-name matching can be resolved. PHASE 7.
 //! - `Dependency` — a directed edge from one module to another, carrying the
@@ -78,8 +83,12 @@ mod artifact;
 mod diagnostic;
 mod entry_point;
 mod manifest;
+mod name_error;
+mod toolchain;
 
-pub use artifact::{Artifact, ArtifactId, ArtifactIdError, ArtifactKind};
+pub use artifact::{Artifact, ArtifactId, ArtifactKind};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
-pub use entry_point::{EntryPoint, EntryPointError};
+pub use entry_point::EntryPoint;
 pub use manifest::{Manifest, ModuleSpec, Package, Project, SUPPORTED_SCHEMA};
+pub use name_error::NameError;
+pub use toolchain::{GuestTarget, ToolchainId};
