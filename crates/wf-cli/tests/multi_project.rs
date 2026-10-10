@@ -175,15 +175,44 @@ fn an_import_that_matches_two_modules_is_refused_by_the_build() {
 }
 
 #[test]
-fn an_import_with_no_provider_fails_at_run_time_not_at_build() {
-    // An import that matches nothing in the project is external — a host ABI namespace,
-    // or one supplied later. Building it must work; running it must say what is missing.
+fn an_undeclared_namespace_is_refused_by_the_build() {
+    // Nothing in the project provides `host`, and nothing says it comes from outside, so
+    // the most likely cause is a typo. Failing here turns a link failure at run time
+    // into an error at edit time.
     let orphan = r#"(module
         (import "host" "give" (func (result i32)))
         (func (export "_start") (result i32)
           call 0))"#;
 
-    let project = Project::new("orphan", &[("app", orphan)], "_start");
+    let project = Project::new("undeclared", &[("app", orphan)], "_start");
+
+    let built = project.wf(&["build"]);
+    assert_eq!(built.status.code(), Some(1), "{}", stderr(&built));
+    let message = stderr(&built);
+    assert!(message.contains("WF002"), "{message}");
+    assert!(message.contains("host"), "{message}");
+    assert!(message.contains("help:"), "{message}");
+}
+
+#[test]
+fn a_declared_host_namespace_builds_and_fails_where_it_actually_fails() {
+    // The same guest, with `host` declared as coming from outside the project. The
+    // build accepts it, and the failure moves to the moment something has to provide it.
+    // WasmFoundry ships no host ABI yet, so that moment is `wf run`.
+    let orphan = r#"(module
+        (import "host" "give" (func (result i32)))
+        (func (export "_start") (result i32)
+          call 0))"#;
+
+    let project = Project::new("declared", &[("app", orphan)], "_start");
+
+    let manifest =
+        std::fs::read_to_string(project.root.join("wasmfoundry.toml")).expect("readable");
+    let declared = manifest.replace(
+        "entry = \"_start\"",
+        "entry = \"_start\"\nhost_namespaces = [\"host\"]",
+    );
+    std::fs::write(project.root.join("wasmfoundry.toml"), declared).expect("writable");
 
     let built = project.wf(&["build"]);
     assert!(built.status.success(), "{}", stderr(&built));
@@ -268,4 +297,55 @@ fn module_matching_is_configurable_and_validated() {
     let message = stderr(&built);
     assert!(message.contains("WF011"), "{message}");
     assert!(message.contains("file-name"), "{message}");
+}
+
+/// A stated namespace beats both the declared name and the file name, in every mode.
+///
+/// This is the case the two derived rules cannot express: the module is called `engine`
+/// for reporting, its source lives at `src/cog.wasm`, and the author wants it imported
+/// as `engine` even though file-name matching would otherwise publish it as `cog`.
+#[test]
+fn a_stated_namespace_wins_over_the_matching_mode() {
+    let project = Project::new("stated", &[("app", APP)], "_start");
+
+    std::fs::write(
+        project.root.join("src/cog.wasm"),
+        wat::parse_str(ENGINE).expect("fixture must assemble"),
+    )
+    .expect("writable");
+
+    let manifest = r#"schema = 1
+
+[package]
+name = "stated"
+version = "0.1.0"
+
+[project]
+source_dir = "src"
+entry = "_start"
+
+[[module]]
+name = "app"
+source = "src/app.wasm"
+toolchain = "precompiled"
+
+[[module]]
+name = "engine"
+source = "src/cog.wasm"
+namespace = "engine"
+toolchain = "precompiled"
+"#;
+    std::fs::write(project.root.join("wasmfoundry.toml"), manifest).expect("writable");
+
+    // file-name matching would publish this module as `cog`; the stated namespace wins.
+    let built = project.wf(&["build"]);
+    assert!(built.status.success(), "{}", stderr(&built));
+
+    let ran = project.wf(&["run"]);
+    assert!(ran.status.success(), "{}", stderr(&ran));
+    assert!(stdout(&ran).contains("returned 42"), "{}", stdout(&ran));
+
+    // The artifact still follows the declared name, not the namespace: the report says
+    // `engine` and the file is engine.wasm.
+    assert!(project.root.join("target/engine.wasm").exists());
 }

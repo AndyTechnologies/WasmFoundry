@@ -274,6 +274,7 @@ mod tests {
             name: "app".to_owned(),
             source: source.to_owned(),
             toolchain: "rust".to_owned(),
+            namespace: None,
         }
     }
 

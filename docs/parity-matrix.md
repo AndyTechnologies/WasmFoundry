@@ -33,6 +33,7 @@ State values:
 | `moduleMatching=name-only` | done | preserved as `ModuleMatching::NameOnly`; an import claiming two modules is refused rather than bound to whichever listed first | 7 |
 | Per-toolchain configuration | done | preserved, keyed by `ToolchainId` instead of toolchain-name conditionals | 6 |
 | multi-module composition | done | the graph is resolved by name and instantiated through Wasmtime's linker; no C++ is generated to represent it | 7 |
+| explicit per-module namespace | done | new, and the reason the derived rule is not the only answer: a module can be reported as one thing and published as another | 7 |
 | Legacy `wapp.json` format | done | replaced by `wasmfoundry.toml` with an explicit `schema` version; an unknown schema is rejected, never partially read | 5 |
 
 ## Runtime and host

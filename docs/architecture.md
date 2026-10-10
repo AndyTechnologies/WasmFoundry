@@ -287,17 +287,22 @@ sources
   -> Wasmtime Linker    instantiate in order, publish each under its namespace
 ```
 
-Two rules hold the pipeline together:
+Three rules hold the pipeline together:
 
-- **Resolution and publication use the same rule.** `resolve_module` binds an import to a
-  module, and `namespace_of` says what that module publishes as. Computed separately they
-  could disagree, and an import would bind to a module that never publishes that name.
-- **External imports are not errors at build time.** A namespace that matches no project
-  module is a host ABI import or one supplied later. Failing the build there would forbid
-  every guest that talks to a host; the runtime reports it as `WF002` when the link is
-  actually attempted.
+- **Resolution and publication use the same function.** `namespace_of` binds an import
+  and says what a module publishes as. Computed separately they could disagree, and an
+  import would bind to a module that never publishes that name — a failure with no
+  message at all.
+- **A stated namespace wins over any derivation.** `[[module]] namespace = "engine"` is
+  the one place the author has written down what a module is called for linking. Without
+  one, `module_matching` decides between the declared name and the source file's name,
+  and that choice stops being written down anywhere.
+- **An import nothing provides is refused.** An unbound namespace that was not declared
+  in `host_namespaces` is most likely a typo, and refusing it turns a link failure at run
+  time into an error at edit time. Declaring it is how a guest that talks to a host
+  builds: those namespaces are not project modules and never will be.
 
-Ambiguity *is* an error: two modules claiming one namespace would bind the import to
+Ambiguity is its own error: two modules claiming one namespace would bind the import to
 whichever the manifest listed first, which is a behaviour nobody chose.
 
 Module matching is an explicit domain concept, not an implicit convention:

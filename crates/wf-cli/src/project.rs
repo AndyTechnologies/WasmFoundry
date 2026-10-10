@@ -7,7 +7,7 @@
 
 use wf_core::{
     Dependency, DependencyGraph, Diagnostic, DiagnosticCode, ModuleId, ModuleMatching, ModuleSpec,
-    ResolveError, Severity, resolve_module,
+    ResolveError, Severity, matching_modules, resolve_module,
 };
 
 /// The imports one module declares, after its source was analysed.
@@ -69,6 +69,7 @@ pub fn plan(
     specs: &[ModuleSpec],
     imports: &[ImportSummary],
     mode: ModuleMatching,
+    host_namespaces: &[String],
 ) -> Result<ProjectOrder, Diagnostic> {
     let mut graph = DependencyGraph::new();
     for spec in specs {
@@ -103,14 +104,32 @@ pub fn plan(
                             .with_help("give every module a non-empty `name`")
                         })?;
                 }
+                Err(ResolveError::NotFound { .. }) if host_namespaces.contains(namespace) => {
+                    // Declared as coming from outside the project — the host ABI, or a
+                    // binding the user supplies. Allowed because it was written down.
+                }
                 Err(ResolveError::NotFound { .. }) => {
-                    // Not a project module: external, and the runtime's problem.
+                    // Nothing provides it and it was not declared, so the likely cause
+                    // is a typo: refusing here is what turns a link failure at run time
+                    // into a build failure at edit time.
+                    return Err(Diagnostic::new(
+                        DiagnosticCode::UnresolvedImport,
+                        Severity::Error,
+                        format!(
+                            "module `{}` imports `{}`, which no module provides",
+                            spec.name, namespace
+                        ),
+                    )
+                    .with_help(
+                        "add `namespace` to the module that should provide it, or declare \
+                         it in [project] host_namespaces if the host provides it",
+                    ));
                 }
                 Err(ResolveError::Ambiguous { .. }) => {
                     // Two modules claim this namespace, so binding it would be a guess.
                     // The candidates are named because the fix is to rename one of
                     // them, and a count alone leaves the reader to hunt.
-                    let claimants = namespace_matches(specs, mode, namespace)
+                    let claimants = matching_modules(mode, specs, namespace)
                         .iter()
                         .map(|module| module.name.as_str())
                         .collect::<Vec<_>>()
@@ -122,7 +141,7 @@ pub fn plan(
                             "module `{}` imports `{}`, which {} modules claim: {claimants}",
                             spec.name,
                             namespace,
-                            namespace_matches(specs, mode, namespace).len()
+                            matching_modules(mode, specs, namespace).len()
                         ),
                     )
                     .with_help("rename one of the modules, or change [project] module_matching"));
@@ -164,24 +183,6 @@ pub fn plan(
     Ok(ProjectOrder { positions, roots })
 }
 
-/// Every module that matches a namespace, for a message that can say how many.
-fn namespace_matches<'a>(
-    specs: &'a [ModuleSpec],
-    mode: ModuleMatching,
-    namespace: &str,
-) -> Vec<&'a ModuleSpec> {
-    specs
-        .iter()
-        .filter(|spec| match mode {
-            ModuleMatching::NameOnly => spec.name == namespace,
-            ModuleMatching::FileName => std::path::Path::new(&spec.source)
-                .file_stem()
-                .and_then(|stem| stem.to_str())
-                .is_some_and(|stem| stem == namespace),
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,6 +193,7 @@ mod tests {
             name: name.to_owned(),
             source: source.to_owned(),
             toolchain: "precompiled".to_owned(),
+            namespace: None,
         }
     }
 
@@ -212,7 +214,7 @@ mod tests {
     #[test]
     fn a_dependency_is_loaded_before_its_dependent() {
         let (specs, imports) = pair();
-        let order = plan(&specs, &imports, ModuleMatching::FileName).expect("acyclic");
+        let order = plan(&specs, &imports, ModuleMatching::FileName, &[]).expect("acyclic");
 
         assert_eq!(order.positions(), &[1, 0], "engine is at index 1, app at 0");
     }
@@ -220,21 +222,39 @@ mod tests {
     #[test]
     fn the_module_nothing_imports_is_the_entry() {
         let (specs, imports) = pair();
-        let order = plan(&specs, &imports, ModuleMatching::FileName).expect("acyclic");
+        let order = plan(&specs, &imports, ModuleMatching::FileName, &[]).expect("acyclic");
 
         assert_eq!(order.roots(), &[0], "app is the only entry");
     }
 
     #[test]
-    fn an_external_namespace_is_not_a_project_dependency() {
-        // `env` is a host namespace, not a project module. Treating it as an error here
-        // would forbid every guest that talks to a host.
+    fn a_declared_host_namespace_is_not_a_project_dependency() {
+        // `env` is a host namespace, not a project module. It is allowed because the
+        // manifest says so, which is what turns "external" from a guess into a
+        // statement.
         let (specs, mut imports) = pair();
         imports[1].namespaces = vec!["env".to_owned()];
 
-        let order = plan(&specs, &imports, ModuleMatching::FileName).expect("external is fine");
+        let hosts = ["env".to_owned()];
+        let order = plan(&specs, &imports, ModuleMatching::FileName, &hosts)
+            .expect("a declared host namespace is fine");
         assert_eq!(order.positions().len(), 2, "both modules still load");
         assert_eq!(order.roots(), &[0], "app still imports engine");
+    }
+
+    #[test]
+    fn an_undeclared_namespace_is_refused_because_it_is_most_likely_a_typo() {
+        // The same `env` import, undeclared: nothing provides it, and saying so at build
+        // time is what turns a link failure at run time into an error at edit time.
+        let (specs, mut imports) = pair();
+        imports[1].namespaces = vec!["env".to_owned()];
+
+        let error = plan(&specs, &imports, ModuleMatching::FileName, &[])
+            .expect_err("undeclared namespaces are refused");
+        assert_eq!(error.code(), DiagnosticCode::UnresolvedImport);
+        assert!(error.message().contains("env"), "{}", error.message());
+        let help = error.help().expect("must say how to fix it");
+        assert!(help.contains("host_namespaces"), "{help}");
     }
 
     #[test]
@@ -253,7 +273,7 @@ mod tests {
         ];
 
         let error =
-            plan(&specs, &imports, ModuleMatching::FileName).expect_err("ambiguous namespace");
+            plan(&specs, &imports, ModuleMatching::FileName, &[]).expect_err("ambiguous namespace");
         assert_eq!(error.code(), DiagnosticCode::UnresolvedImport);
         assert!(error.message().contains("engine"), "{}", error.message());
         assert!(error.help().is_some(), "{error}");
@@ -267,7 +287,7 @@ mod tests {
             ImportSummary::new("b", vec!["a".to_owned()]),
         ];
 
-        let error = plan(&specs, &imports, ModuleMatching::FileName).expect_err("a cycle");
+        let error = plan(&specs, &imports, ModuleMatching::FileName, &[]).expect_err("a cycle");
         assert_eq!(error.code(), DiagnosticCode::DependencyCycle);
         let message = error.message();
         assert!(message.contains("a") && message.contains("b"), "{message}");
@@ -278,7 +298,7 @@ mod tests {
         let specs = vec![spec("a", "src/a.wasm")];
         let imports = vec![ImportSummary::new("a", vec!["a".to_owned()])];
 
-        let error = plan(&specs, &imports, ModuleMatching::FileName).expect_err("self import");
+        let error = plan(&specs, &imports, ModuleMatching::FileName, &[]).expect_err("self import");
         assert_eq!(error.code(), DiagnosticCode::DependencyCycle);
     }
 
@@ -295,31 +315,31 @@ mod tests {
             ImportSummary::new("math", Vec::new()),
         ];
 
-        let order = plan(&specs, &imports, ModuleMatching::FileName).expect("acyclic");
+        let order = plan(&specs, &imports, ModuleMatching::FileName, &[]).expect("acyclic");
         assert_eq!(order.positions(), &[2, 1, 0]);
         assert_eq!(order.roots(), &[0]);
     }
 
     #[test]
     fn matching_mode_decides_which_module_a_namespace_binds_to() {
-        // Declared name and file name disagree, so the manifest's rule is what decides
-        // whether `app` depends on `engine` at all. The proof is in the roots: under
-        // file-name matching app is the only entry, and under name-only matching
-        // nothing imports anything, so both modules are entries.
+        // Declared name and file name disagree, so the manifest's rule decides whether
+        // `app` binds to `engine` at all — and, since an unbound import is refused,
+        // whether the project builds.
         let specs = vec![spec("app", "src/app.wasm"), spec("engine", "src/cog.wasm")];
         let imports = vec![
             ImportSummary::new("app", vec!["cog".to_owned()]),
             ImportSummary::new("engine", Vec::new()),
         ];
 
-        let by_file = plan(&specs, &imports, ModuleMatching::FileName).expect("binds `cog`");
+        let by_file = plan(&specs, &imports, ModuleMatching::FileName, &[]).expect("binds `cog`");
         assert_eq!(by_file.roots(), &[0], "app is the only entry");
 
-        let by_name = plan(&specs, &imports, ModuleMatching::NameOnly).expect("external is fine");
-        assert_eq!(
-            by_name.roots(),
-            &[0, 1],
-            "with no binding, app no longer depends on engine"
-        );
+        // Under the other rule nothing provides `cog`, and nothing declares it as coming
+        // from outside either, so the build refuses. The mode did not merely change the
+        // order — it changed whether the project is buildable at all.
+        let error = plan(&specs, &imports, ModuleMatching::NameOnly, &[])
+            .expect_err("name-only matching has no `cog`");
+        assert_eq!(error.code(), DiagnosticCode::UnresolvedImport);
+        assert!(error.message().contains("cog"), "{}", error.message());
     }
 }

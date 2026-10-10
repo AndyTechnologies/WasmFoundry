@@ -191,6 +191,7 @@ fn project_plan() -> Result<Planned, i32> {
         &manifest.modules,
         &imports,
         manifest.project.module_matching,
+        &manifest.project.host_namespaces,
     )
     .map_err(|diagnostic| {
         eprintln!("{diagnostic}");

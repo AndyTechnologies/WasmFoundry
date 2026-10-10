@@ -267,6 +267,7 @@ mod tests {
             name: "app".to_owned(),
             source: "src/app.wasm".to_owned(),
             toolchain: "cpp".to_owned(),
+            namespace: None,
         };
         let id = ToolchainId::new(&module.toolchain).expect("valid name");
         let diagnostic = unknown_toolchain(&module, &id);

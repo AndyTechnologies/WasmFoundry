@@ -37,6 +37,12 @@ pub struct Project {
     pub entry: String,
     /// How an import's namespace is matched against a module declaration.
     pub module_matching: crate::ModuleMatching,
+    /// Namespaces the project expects to come from outside it.
+    ///
+    /// The host ABI owns these, not the project. Naming them here is what lets the build
+    /// refuse an import it cannot bind — including the case where the author simply
+    /// mistyped a module's name.
+    pub host_namespaces: Vec<String>,
 }
 
 /// One module the project builds.
@@ -48,6 +54,12 @@ pub struct ModuleSpec {
     pub source: String,
     /// Toolchain that turns `source` into a module.
     pub toolchain: String,
+    /// Namespace this module publishes its exports under.
+    ///
+    /// Stated explicitly, it beats both the declared name and the source file name. When
+    /// it is absent, [`module_matching`](crate::ModuleMatching) decides which of those
+    /// two counts, and the choice stops being written down anywhere.
+    pub namespace: Option<String>,
 }
 
 /// The schema version this version of WasmFoundry reads.

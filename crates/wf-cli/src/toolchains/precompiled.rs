@@ -92,6 +92,7 @@ mod tests {
             name: "app".to_owned(),
             source: source.to_owned(),
             toolchain: "precompiled".to_owned(),
+            namespace: None,
         }
     }
 

@@ -19,11 +19,13 @@ fn valid_manifest() -> Manifest {
             source_dir: "src".to_owned(),
             entry: "_start".to_owned(),
             module_matching: wf_core::ModuleMatching::default(),
+            host_namespaces: Vec::new(),
         },
         modules: vec![ModuleSpec {
             name: "hello".to_owned(),
             source: "src/hello.wasm".to_owned(),
             toolchain: "precompiled".to_owned(),
+            namespace: None,
         }],
     }
 }
@@ -67,6 +69,7 @@ fn an_unknown_schema_is_not_partially_interpreted() {
             source_dir: String::new(),
             entry: String::new(),
             module_matching: wf_core::ModuleMatching::default(),
+            host_namespaces: Vec::new(),
         },
         modules: Vec::new(),
     };
@@ -159,6 +162,7 @@ fn duplicate_module_names_are_rejected() {
         name: "hello".to_owned(),
         source: "src/other.wasm".to_owned(),
         toolchain: "precompiled".to_owned(),
+        namespace: None,
     });
 
     let diagnostics = manifest.validate();
@@ -199,11 +203,13 @@ fn a_degenerate_manifest_never_panics() {
             source_dir: String::new(),
             entry: String::new(),
             module_matching: wf_core::ModuleMatching::default(),
+            host_namespaces: Vec::new(),
         },
         modules: vec![ModuleSpec {
             name: String::new(),
             source: String::new(),
             toolchain: String::new(),
+            namespace: None,
         }],
     };
 

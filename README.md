@@ -152,23 +152,38 @@ source = "src/hello.wasm"
 toolchain = "precompiled"
 ```
 
-A project may hold several modules. An import names a namespace, and the manifest's
-`module_matching` decides which field of a module declaration that namespace is compared
-against:
+A project may hold several modules. An import names a namespace, and a module's namespace
+is either stated in the manifest or derived from the matching mode:
 
 ```toml
 [project]
 source_dir = "src"
 entry = "_start"
-module_matching = "file-name"   # or "name-only"
+module_matching = "file-name"      # or "name-only"
+host_namespaces = ["env"]          # namespaces expected from outside the project
+
+[[module]]
+name = "engine"
+source = "src/cog.wasm"
+namespace = "engine"               # stated: beats both the name and the file
 ```
 
-- `file-name` — the namespace matches the source file's name without its extension
-- `name-only` — the namespace matches the module's `name`
+A stated `namespace` wins in every mode. Without one:
 
-`wf build` refuses a project whose imports cannot be bound: a namespace claimed by two
-modules, or a cycle. An import that matches *no* project module is left alone — that is a
-host or external import, and whether it can be satisfied is the runtime's question.
+- `file-name` — the namespace is the source file's name without its extension
+- `name-only` — the namespace is the module's `name`
+
+The same rule binds an import and publishes an export, so the two sides cannot disagree.
+
+`wf build` refuses a project whose imports cannot be bound, because an import that names
+no project module and was not declared as external is most likely a typo:
+
+- a namespace claimed by two modules — `WF002`, naming the claimants
+- an import nothing provides and nothing declares — `WF002`
+- a dependency cycle — `WF003`
+
+Declaring a namespace in `host_namespaces` is how a guest that talks to a host builds:
+those namespaces are not project modules and never will be.
 
 A manifest whose `schema` this version does not know is rejected outright: it is never
 partially interpreted, because fields shared between two schemas may have changed meaning.

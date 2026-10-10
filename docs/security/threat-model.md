@@ -88,6 +88,11 @@ every `.wasm` is trusted.
 - **Toolchain availability is checked, toolchain *identity* is not signed.** A manifest
   naming `toolchain = "rust"` makes the CLI run `cargo`. Trusting the manifest's
   toolchain field is equivalent to trusting the project.
+- **`host_namespaces` declares what the build must not try to resolve.** It cannot name a
+  program or a path — only a namespace string that imports are allowed to leave
+  unsatisfied — so it widens what a manifest may *link*, never what it may *execute*.
+- **`namespace` is a linking name, not a file.** A stated namespace is compared as a
+  string against import names; it never reaches the filesystem or the process table.
 
 **Resolved in PHASE 6:** the manifest's `toolchain` field resolves through one `match`
 in `wf-cli/src/toolchains/mod.rs` to a toolchain this version implements. It never

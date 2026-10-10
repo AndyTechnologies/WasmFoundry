@@ -44,6 +44,9 @@ struct ProjectFile {
     /// on a serialisation format.
     #[serde(default)]
     module_matching: Option<String>,
+    /// Namespaces this project expects to come from outside it.
+    #[serde(default)]
+    host_namespaces: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,6 +55,10 @@ struct ModuleFile {
     name: String,
     source: String,
     toolchain: String,
+    /// The namespace this module publishes under, when the author wants to say so
+    /// rather than have it derived from the file name or the declared name.
+    #[serde(default)]
+    namespace: Option<String>,
 }
 
 /// Reads and parses a manifest file.
@@ -108,6 +115,7 @@ pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
             source_dir: file.project.source_dir,
             entry: file.project.entry,
             module_matching: parse_module_matching(file.project.module_matching.as_deref())?,
+            host_namespaces: file.project.host_namespaces,
         },
         modules: file
             .module
@@ -116,6 +124,7 @@ pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
                 name: module.name,
                 source: module.source,
                 toolchain: module.toolchain,
+                namespace: module.namespace,
             })
             .collect(),
     })
