@@ -33,6 +33,7 @@ mod init;
 mod inspect;
 mod manifest;
 mod process;
+mod project;
 mod run;
 mod toolchains;
 

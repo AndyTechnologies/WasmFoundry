@@ -279,13 +279,26 @@ with exactly one backend that covers the MVP case; `CompilerBackend`, `Sysroot` 
 
 ```text
 sources
-  -> compile
-  -> analysis
-  -> module resolution
-  -> dependency graph
-  -> runtime plan
-  -> Wasmtime Linker
+  -> compile            each module, through its own toolchain
+  -> analysis           what each published artifact imports
+  -> module resolution  namespace -> project module, under the manifest's rule
+  -> dependency graph   edges for project imports only; external imports left alone
+  -> runtime plan       topological order, and which module is the entry
+  -> Wasmtime Linker    instantiate in order, publish each under its namespace
 ```
+
+Two rules hold the pipeline together:
+
+- **Resolution and publication use the same rule.** `resolve_module` binds an import to a
+  module, and `namespace_of` says what that module publishes as. Computed separately they
+  could disagree, and an import would bind to a module that never publishes that name.
+- **External imports are not errors at build time.** A namespace that matches no project
+  module is a host ABI import or one supplied later. Failing the build there would forbid
+  every guest that talks to a host; the runtime reports it as `WF002` when the link is
+  actually attempted.
+
+Ambiguity *is* an error: two modules claiming one namespace would bind the import to
+whichever the manifest listed first, which is a behaviour nobody chose.
 
 Module matching is an explicit domain concept, not an implicit convention:
 

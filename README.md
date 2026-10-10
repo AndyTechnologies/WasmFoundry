@@ -8,9 +8,10 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 6.** Two guest toolchains: a precompiled module is validated and
-> published, and a Rust crate is compiled to WebAssembly by `cargo`. `wf run` executes
-> either. Everything else is still ahead — see [Status](#status).
+> **Status: PHASE 7.** Two guest toolchains — a precompiled module, and a Rust crate
+> compiled by `cargo` — and a project can be made of several modules that import from
+> each other: `wf build` resolves the graph, `wf run` instantiates them in dependency
+> order. Everything else is still ahead — see [Status](#status).
 
 ---
 
@@ -151,6 +152,24 @@ source = "src/hello.wasm"
 toolchain = "precompiled"
 ```
 
+A project may hold several modules. An import names a namespace, and the manifest's
+`module_matching` decides which field of a module declaration that namespace is compared
+against:
+
+```toml
+[project]
+source_dir = "src"
+entry = "_start"
+module_matching = "file-name"   # or "name-only"
+```
+
+- `file-name` — the namespace matches the source file's name without its extension
+- `name-only` — the namespace matches the module's `name`
+
+`wf build` refuses a project whose imports cannot be bound: a namespace claimed by two
+modules, or a cycle. An import that matches *no* project module is left alone — that is a
+host or external import, and whether it can be satisfied is the runtime's question.
+
 A manifest whose `schema` this version does not know is rejected outright: it is never
 partially interpreted, because fields shared between two schemas may have changed meaning.
 Unknown table and field names are also rejected, so a typo cannot silently do nothing.
@@ -198,7 +217,8 @@ Diagnostic codes, also stable:
 | Code | Cause |
 | --- | --- |
 | `WF001` | The input is not a compilable WebAssembly module |
-| `WF002` | An import has no provider |
+| `WF002` | An import has no provider, or cannot be bound to one module |
+| `WF003` | The project's modules form a dependency cycle |
 | `WF004` | The toolchain a module asks for is not available |
 | `WF005` | The requested entry point is not exported |
 | `WF009` | The guest faulted while executing |
@@ -225,7 +245,7 @@ and must pass its gate before the next begins.
 | 4 | `wf run` | pending |
 | 5 | `wf init`, `wf build` for precompiled wasm | ✅ done |
 | 6 | Rust guest toolchain | ✅ done |
-| 7 | Dependency graph and module matching | pending |
+| 7 | Dependency graph and module matching | ✅ done |
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | pending |
 | 10–11 | C++ and AssemblyScript toolchains | pending |
 | 12–13 | Cache, watch | pending |

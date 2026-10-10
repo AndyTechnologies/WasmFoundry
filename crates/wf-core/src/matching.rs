@@ -135,6 +135,21 @@ pub fn resolve_module<'a>(
     }
 }
 
+/// The namespace a module publishes its exports under.
+///
+/// The same rule that resolves an import decides what a module publishes as. If the two
+/// sides were computed differently, an import could be bound to a module that never
+/// publishes under that name.
+///
+/// `None` when the rule cannot produce a name — a file-name match over a source with no
+/// file name has nothing to bind to.
+pub fn namespace_of(mode: ModuleMatching, module: &ModuleSpec) -> Option<&str> {
+    match mode {
+        ModuleMatching::NameOnly => Some(module.name.as_str()),
+        ModuleMatching::FileName => Path::new(&module.source).file_stem()?.to_str(),
+    }
+}
+
 /// Applies the active rule to one module declaration.
 fn matches_namespace(mode: ModuleMatching, module: &ModuleSpec, namespace: &str) -> bool {
     match mode {

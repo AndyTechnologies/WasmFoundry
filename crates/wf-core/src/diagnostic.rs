@@ -15,6 +15,8 @@ pub enum DiagnosticCode {
     InvalidWasm,
     /// `WF002` — an import has no provider.
     UnresolvedImport,
+    /// `WF003` — the project's modules form a dependency cycle.
+    DependencyCycle,
     /// `WF004` — the toolchain a module asks for is not available.
     MissingToolchain,
     /// `WF004` covers both the toolchain this version does not implement and the
@@ -36,6 +38,7 @@ impl fmt::Display for DiagnosticCode {
         f.write_str(match self {
             DiagnosticCode::InvalidWasm => "WF001",
             DiagnosticCode::UnresolvedImport => "WF002",
+            DiagnosticCode::DependencyCycle => "WF003",
             DiagnosticCode::MissingToolchain => "WF004",
             DiagnosticCode::MissingEntrypoint => "WF005",
             DiagnosticCode::RuntimeTrap => "WF009",

@@ -74,6 +74,28 @@ pub struct Module {
     inner: WasmtimeModule,
 }
 
+/// One module to load, with the namespace its exports are published under.
+///
+/// The namespace is what other modules import it as, so a project may list the same
+/// module under whichever name its matching rule binds to.
+#[derive(Debug, Clone)]
+pub struct Unit<'a> {
+    namespace: &'a str,
+    module: &'a Module,
+}
+
+impl<'a> Unit<'a> {
+    /// Binds a compiled module to a namespace.
+    pub fn new(namespace: &'a str, module: &'a Module) -> Self {
+        Unit { namespace, module }
+    }
+
+    /// The namespace this module publishes its exports under.
+    pub fn namespace(&self) -> &str {
+        self.namespace
+    }
+}
+
 /// What one invocation produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunOutcome {
@@ -211,74 +233,139 @@ impl Runtime {
                 message: describe(&error),
             })?;
 
-        let export = instance
-            .get_export(&mut store, entry.as_str())
-            .ok_or_else(|| RuntimeError::MissingExport {
-                name: entry.as_str().to_owned(),
-            })?;
-
-        let function = match export {
-            Extern::Func(function) => function,
-            other => {
-                return Err(RuntimeError::Configuration {
-                    message: format!(
-                        "`{entry}` is not a function; the module exports a {}",
-                        extern_kind(&other)
-                    ),
-                });
-            }
-        };
-
-        let signature = function.ty(&store);
-        let params: Vec<ValType> = signature.params().collect();
-        let results: Vec<ValType> = signature.results().collect();
-
-        let return_value =
-            if params.is_empty() && results.is_empty() {
-                let typed = function.typed::<(), ()>(&store).map_err(|error| {
-                    RuntimeError::Configuration {
-                        message: error.to_string(),
-                    }
-                })?;
-                typed
-                    .call(&mut store, ())
-                    .map_err(|error| RuntimeError::Trap {
-                        message: describe(&error),
-                    })?;
-                None
-            } else if params.is_empty() && matches!(results.as_slice(), [ValType::I32]) {
-                let typed = function.typed::<(), i32>(&store).map_err(|error| {
-                    RuntimeError::Configuration {
-                        message: error.to_string(),
-                    }
-                })?;
-                Some(
-                    typed
-                        .call(&mut store, ())
-                        .map_err(|error| RuntimeError::Trap {
-                            message: describe(&error),
-                        })?,
-                )
-            } else {
-                // Guessing at a signature would be worse than refusing: passing the wrong
-                // values to a guest is a way to corrupt state rather than to report an
-                // incompatibility.
-                return Err(RuntimeError::Configuration {
-                    message: format!(
-                        "`{entry}` has signature `({}) -> ({})`; WasmFoundry invokes \
-                     `() -> ()` or `() -> i32`",
-                        join_types(&params),
-                        join_types(&results)
-                    ),
-                });
-            };
-
+        let return_value = invoke(&mut store, instance, entry)?;
         Ok(RunOutcome {
             entry: entry.clone(),
             return_value,
             duration: started.elapsed(),
         })
     }
+
+    /// Invokes `entry` on one unit of a linked set.
+    ///
+    /// Every unit is instantiated in the order given and published under its namespace,
+    /// so a later unit's imports resolve against everything before it. The caller
+    /// supplies that order: a topological order is what makes a set linkable, and a
+    /// wrong order fails as a link error rather than appearing to work.
+    ///
+    /// The store is created here and dropped on return, exactly as in [`Runtime::run`]:
+    /// two runs, including two running in parallel threads, share no state at all.
+    pub fn run_units(
+        &self,
+        units: &[Unit<'_>],
+        root_namespace: &str,
+        entry: &EntryPoint,
+    ) -> Result<RunOutcome, RuntimeError> {
+        let started = Instant::now();
+
+        let mut store = Store::new(&self.engine, ());
+        let mut linker = Linker::new(&self.engine);
+        let mut root_instance = None;
+
+        for unit in units {
+            let instance = linker
+                .instantiate(&mut store, &unit.module.inner)
+                .map_err(|error| RuntimeError::Link {
+                    message: describe(&error),
+                })?;
+
+            // Publishing under the namespace is what makes the next unit's imports
+            // resolvable. It happens per unit rather than at the end, so order decides
+            // everything and a duplicate namespace becomes a collision instead of a
+            // silent override.
+            linker
+                .instance(&mut store, unit.namespace, instance)
+                .map_err(|error| RuntimeError::Link {
+                    message: describe(&error),
+                })?;
+
+            if unit.namespace == root_namespace {
+                root_instance = Some(instance);
+            }
+        }
+
+        let instance = root_instance.ok_or_else(|| RuntimeError::MissingExport {
+            name: root_namespace.to_owned(),
+        })?;
+
+        let return_value = invoke(&mut store, instance, entry)?;
+        Ok(RunOutcome {
+            entry: entry.clone(),
+            return_value,
+            duration: started.elapsed(),
+        })
+    }
+}
+
+/// Calls an exported entry point, returning the value it produced.
+///
+/// Shared by [`Runtime::run`] and [`Runtime::run_units`]: what an entry point must look
+/// like does not depend on how many modules were loaded to reach it.
+fn invoke(
+    store: &mut Store<()>,
+    instance: wasmtime::Instance,
+    entry: &EntryPoint,
+) -> Result<Option<i32>, RuntimeError> {
+    let export = instance
+        .get_export(&mut *store, entry.as_str())
+        .ok_or_else(|| RuntimeError::MissingExport {
+            name: entry.as_str().to_owned(),
+        })?;
+
+    let function = match export {
+        Extern::Func(function) => function,
+        other => {
+            return Err(RuntimeError::Configuration {
+                message: format!(
+                    "`{entry}` is not a function; the module exports a {}",
+                    extern_kind(&other)
+                ),
+            });
+        }
+    };
+
+    let signature = function.ty(&*store);
+    let params: Vec<ValType> = signature.params().collect();
+    let results: Vec<ValType> = signature.results().collect();
+
+    if params.is_empty() && results.is_empty() {
+        let typed =
+            function
+                .typed::<(), ()>(&*store)
+                .map_err(|error| RuntimeError::Configuration {
+                    message: error.to_string(),
+                })?;
+        typed
+            .call(&mut *store, ())
+            .map_err(|error| RuntimeError::Trap {
+                message: describe(&error),
+            })?;
+        return Ok(None);
+    }
+
+    if params.is_empty() && matches!(results.as_slice(), [ValType::I32]) {
+        let typed =
+            function
+                .typed::<(), i32>(&*store)
+                .map_err(|error| RuntimeError::Configuration {
+                    message: error.to_string(),
+                })?;
+        let value = typed.call(store, ()).map_err(|error| RuntimeError::Trap {
+            message: describe(&error),
+        })?;
+        return Ok(Some(value));
+    }
+
+    // Guessing at a signature would be worse than refusing: passing the wrong values to a
+    // guest is a way to corrupt state rather than to report an incompatibility.
+    Err(RuntimeError::Configuration {
+        message: format!(
+            "`{entry}` has signature `({}) -> ({})`; WasmFoundry invokes \
+             `() -> ()` or `() -> i32`",
+            join_types(&params),
+            join_types(&results)
+        ),
+    })
 }
 
 /// Flattens a Wasmtime error into one message that names the actual cause.

@@ -132,3 +132,38 @@ fn an_unrecognised_mode_is_rejected_with_the_ones_that_exist() {
     assert!(message.contains("file-name"), "{message}");
     assert!(message.contains("name-only"), "{message}");
 }
+
+#[test]
+fn the_namespace_a_module_publishes_under_follows_the_active_rule() {
+    // The same rule that resolves an import decides what the module publishes as, or the
+    // two sides of a link would never meet.
+    let module = module("engine", "src/cog.wasm");
+
+    assert_eq!(
+        Some("cog"),
+        wf_core::namespace_of(ModuleMatching::FileName, &module)
+    );
+    assert_eq!(
+        Some("engine"),
+        wf_core::namespace_of(ModuleMatching::NameOnly, &module)
+    );
+}
+
+#[test]
+fn a_source_without_a_file_name_publishes_nothing() {
+    // A trailing slash does not remove the file name — `src/` is the directory `src`,
+    // whose stem is `src`. What has no stem is a path that names no file at all.
+    let directory = module("app", "src/");
+    assert_eq!(
+        wf_core::namespace_of(ModuleMatching::FileName, &directory),
+        Some("src"),
+        "a directory path still has a last component to name"
+    );
+
+    let no_file = module("app", ".");
+    assert_eq!(
+        wf_core::namespace_of(ModuleMatching::FileName, &no_file),
+        None,
+        "with no file name there is nothing to bind to"
+    );
+}

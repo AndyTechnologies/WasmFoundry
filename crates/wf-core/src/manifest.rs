@@ -35,6 +35,8 @@ pub struct Project {
     pub source_dir: String,
     /// Export the project runs by default.
     pub entry: String,
+    /// How an import's namespace is matched against a module declaration.
+    pub module_matching: crate::ModuleMatching,
 }
 
 /// One module the project builds.

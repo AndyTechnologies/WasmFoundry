@@ -29,9 +29,10 @@ State values:
 
 | Capability | State | Decision | Phase |
 | --- | --- | --- | --- |
-| `moduleMatching=file-name` | pending | preserve as an explicit domain enum, never an implicit convention | 7 |
-| `moduleMatching=name-only` | pending | preserve as an explicit domain enum | 7 |
-| Per-toolchain configuration | pending | preserve, keyed by `ToolchainId` instead of toolchain-name conditionals | 6 |
+| `moduleMatching=file-name` | done | preserved as `ModuleMatching::FileName`, the default; the manifest states it and validation rejects anything else | 7 |
+| `moduleMatching=name-only` | done | preserved as `ModuleMatching::NameOnly`; an import claiming two modules is refused rather than bound to whichever listed first | 7 |
+| Per-toolchain configuration | done | preserved, keyed by `ToolchainId` instead of toolchain-name conditionals | 6 |
+| multi-module composition | done | the graph is resolved by name and instantiated through Wasmtime's linker; no C++ is generated to represent it | 7 |
 | Legacy `wapp.json` format | done | replaced by `wasmfoundry.toml` with an explicit `schema` version; an unknown schema is rejected, never partially read | 5 |
 
 ## Runtime and host

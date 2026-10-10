@@ -52,7 +52,7 @@ Each phase delivers one observable capability and must pass its gate before the 
 | 4 | `wf run` — execute a core module | ✅ Engine → Module → Store → Linker → entry, no WASI |
 | 5 | `wf init`, `wf build` for precompiled wasm | ✅ project concept, `wasmfoundry.toml` |
 | 6 | Rust guest toolchain | ✅ Rust source → wasm → run |
-| 7 | Dependency graph, module matching | module A imports module B, both run |
+| 7 | Dependency graph, module matching | ✅ module A imports module B, both run |
 | 8 | Host ABI v1 | documented namespaces, signatures, ownership |
 | 9 | WASI, mounts, capability policy, execution limits | denied by default, granted explicitly, bounded execution |
 | 10 | C++ toolchain | C++ source → wasm → run |

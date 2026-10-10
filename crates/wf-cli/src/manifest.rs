@@ -40,6 +40,10 @@ struct PackageFile {
 struct ProjectFile {
     source_dir: String,
     entry: String,
+    /// Parsed as text and interpreted by the domain, so `wf-core` keeps no dependency
+    /// on a serialisation format.
+    #[serde(default)]
+    module_matching: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,6 +72,21 @@ pub fn read(path: &Path) -> Result<Manifest, Diagnostic> {
     parse(&text)
 }
 
+/// Reads the `module_matching` value, rejecting an unrecognised one.
+fn parse_module_matching(value: Option<&str>) -> Result<wf_core::ModuleMatching, Diagnostic> {
+    match value {
+        None => Ok(wf_core::ModuleMatching::default()),
+        Some(value) => value.parse().map_err(|error| {
+            Diagnostic::new(
+                DiagnosticCode::InvalidManifest,
+                Severity::Error,
+                format!("{MANIFEST_FILE} is not a valid manifest: {error}"),
+            )
+            .with_help("set `module_matching = \"file-name\"` or `= \"name-only\"`")
+        }),
+    }
+}
+
 /// Parses manifest text.
 pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
     let file: ManifestFile = toml::from_str(text).map_err(|error| {
@@ -88,6 +107,7 @@ pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
         project: Project {
             source_dir: file.project.source_dir,
             entry: file.project.entry,
+            module_matching: parse_module_matching(file.project.module_matching.as_deref())?,
         },
         modules: file
             .module

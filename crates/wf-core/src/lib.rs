@@ -96,6 +96,8 @@ pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use entry_point::EntryPoint;
 pub use graph::{Dependency, DependencyGraph, GraphError, ModuleId};
 pub use manifest::{Manifest, ModuleSpec, Package, Project, SUPPORTED_SCHEMA};
-pub use matching::{ModuleMatching, ParseModuleMatchingError, ResolveError, resolve_module};
+pub use matching::{
+    ModuleMatching, ParseModuleMatchingError, ResolveError, namespace_of, resolve_module,
+};
 pub use name_error::NameError;
 pub use toolchain::{GuestTarget, ToolchainId};

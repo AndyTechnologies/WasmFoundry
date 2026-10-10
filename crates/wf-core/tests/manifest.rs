@@ -18,6 +18,7 @@ fn valid_manifest() -> Manifest {
         project: Project {
             source_dir: "src".to_owned(),
             entry: "_start".to_owned(),
+            module_matching: wf_core::ModuleMatching::default(),
         },
         modules: vec![ModuleSpec {
             name: "hello".to_owned(),
@@ -65,6 +66,7 @@ fn an_unknown_schema_is_not_partially_interpreted() {
         project: Project {
             source_dir: String::new(),
             entry: String::new(),
+            module_matching: wf_core::ModuleMatching::default(),
         },
         modules: Vec::new(),
     };
@@ -196,6 +198,7 @@ fn a_degenerate_manifest_never_panics() {
         project: Project {
             source_dir: String::new(),
             entry: String::new(),
+            module_matching: wf_core::ModuleMatching::default(),
         },
         modules: vec![ModuleSpec {
             name: String::new(),

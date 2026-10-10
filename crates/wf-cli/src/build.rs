@@ -4,9 +4,11 @@
 //! produced. No compiler knowledge lives here: which toolchain handles a manifest value,
 //! and how it is invoked, belong to [`crate::toolchains`].
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use wf_core::{Diagnostic, DiagnosticCode, Severity, ToolchainId};
+use wf_core::{Diagnostic, DiagnosticCode, Manifest, Severity, ToolchainId};
+
+use crate::project::{self, ImportSummary};
 
 use crate::cli::BuildArgs;
 use crate::manifest::MANIFEST_FILE;
@@ -37,7 +39,7 @@ pub fn run(_args: &BuildArgs) -> i32 {
 
     let root = Path::new(".");
     let runner = StdRunner;
-    let mut built = 0;
+    let mut published: Vec<(String, PathBuf)> = Vec::new();
 
     for module in &manifest.modules {
         let id = match ToolchainId::new(&module.toolchain) {
@@ -83,17 +85,72 @@ pub fn run(_args: &BuildArgs) -> i32 {
                     result.path().display(),
                     result.detail()
                 );
-                built += 1;
+                published.push((module.name.clone(), result.path().to_path_buf()));
             }
             Err(diagnostic) => return report(&[diagnostic]),
         }
     }
 
+    // Once every module exists, check the set: an import that names two project modules
+    // cannot be bound, and a cycle cannot be instantiated. Both are manifest problems,
+    // and saying so here is cheaper than saying it the first time somebody runs it.
+    if let Err(diagnostic) = check_links(&manifest, &published) {
+        return report(&[diagnostic]);
+    }
+
     println!(
-        "wf: built {built} module(s) into {}/",
+        "wf: built {} module(s) into {}/",
+        published.len(),
         Path::new("target").display()
     );
     EXIT_OK
+}
+
+/// Resolves every published module's imports against the rest of the project.
+///
+/// What a module imports is read from the artifact rather than from its source: the
+/// artifact is what will be linked, so it is the only evidence that matters.
+fn check_links(manifest: &Manifest, published: &[(String, PathBuf)]) -> Result<(), Diagnostic> {
+    let mut imports = Vec::with_capacity(published.len());
+
+    for (name, path) in published {
+        let bytes = std::fs::read(path).map_err(|error| {
+            Diagnostic::new(
+                DiagnosticCode::ToolchainFailed,
+                Severity::Error,
+                format!("cannot read the published module `{name}`: {error}"),
+            )
+            .with_help("re-run `wf build`")
+        })?;
+
+        let analysis = wf_wasm::analyze(&bytes).map_err(|error| {
+            Diagnostic::new(
+                DiagnosticCode::InvalidWasm,
+                Severity::Error,
+                format!("module `{name}`: {error}"),
+            )
+            .with_help("the published module is not a valid WebAssembly module")
+        })?;
+
+        let namespaces = analysis
+            .core()
+            .map(|core| {
+                core.imports()
+                    .iter()
+                    .map(|import| import.module().to_owned())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        imports.push(ImportSummary::new(name.clone(), namespaces));
+    }
+
+    project::plan(
+        &manifest.modules,
+        &imports,
+        manifest.project.module_matching,
+    )
+    .map(|_| ())
 }
 
 /// Prints every diagnostic and returns the diagnostic exit code.
