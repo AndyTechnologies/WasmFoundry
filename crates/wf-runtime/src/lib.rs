@@ -48,6 +48,12 @@
 
 #![forbid(unsafe_code)]
 
+mod console;
+mod host;
+
+pub use console::{PROVIDED, console};
+pub use host::{Guest, HostError, HostFunction};
+
 use std::error::Error as StdError;
 use std::fmt;
 use std::time::{Duration, Instant};
@@ -63,6 +69,9 @@ use wf_core::{DiagnosticCode, EntryPoint};
 #[derive(Debug, Default, Clone)]
 pub struct Runtime {
     engine: wasmtime::Engine,
+    /// What a guest is allowed to import from the host. Empty means nothing, which is
+    /// exactly right for a module that calls no host function.
+    host: Vec<HostFunction>,
 }
 
 /// A compiled WebAssembly binary.
@@ -162,6 +171,11 @@ pub enum RuntimeError {
         /// The fault Wasmtime reported, including the source location when it has one.
         message: String,
     },
+    /// A host function failed while the guest was calling it.
+    Host {
+        /// What the host function objected to.
+        message: String,
+    },
     /// The entry point exists but is not something this runtime can invoke.
     Configuration {
         /// What the export actually is, and what the runtime supports.
@@ -180,6 +194,7 @@ impl RuntimeError {
             RuntimeError::Link { .. } => DiagnosticCode::UnresolvedImport,
             RuntimeError::MissingExport { .. } => DiagnosticCode::MissingEntrypoint,
             RuntimeError::Trap { .. } => DiagnosticCode::RuntimeTrap,
+            RuntimeError::Host { .. } => DiagnosticCode::HostFailure,
             RuntimeError::Configuration { .. } => DiagnosticCode::EntrypointUnsuitable,
         }
     }
@@ -196,6 +211,7 @@ impl fmt::Display for RuntimeError {
                 write!(f, "entry point `{name}` is not exported by this module")
             }
             RuntimeError::Trap { message } => write!(f, "guest trapped: {message}"),
+            RuntimeError::Host { message } => write!(f, "host function failed: {message}"),
             RuntimeError::Configuration { message } => {
                 write!(f, "cannot invoke entry point: {message}")
             }
@@ -206,6 +222,17 @@ impl fmt::Display for RuntimeError {
 impl StdError for RuntimeError {}
 
 impl Runtime {
+    /// Builds a runtime whose guests may import exactly `host`.
+    ///
+    /// The surface is decided here, once per run, rather than per module: what a guest
+    /// can reach is a property of the invocation, not of the binary it happens to be.
+    pub fn with_host_functions(host: Vec<HostFunction>) -> Self {
+        Runtime {
+            engine: wasmtime::Engine::default(),
+            host,
+        }
+    }
+
     /// Compiles bytes into a reusable [`Module`].
     ///
     /// Validation happens here and only here: everything after a successful compile
@@ -225,8 +252,11 @@ impl Runtime {
     pub fn run(&self, module: &Module, entry: &EntryPoint) -> Result<RunOutcome, RuntimeError> {
         let started = Instant::now();
 
-        let mut store = Store::new(&self.engine, ());
-        let linker = Linker::new(&self.engine);
+        // The store carries one slot: the reason a host function failed, if one did. It
+        // is what turns a trap into a host failure when the host was the one that broke.
+        let mut store: Store<Option<String>> = Store::new(&self.engine, None);
+        let mut linker: Linker<Option<String>> = Linker::new(&self.engine);
+        host::install(&self.engine, &mut linker, &self.host)?;
         let instance = linker
             .instantiate(&mut store, &module.inner)
             .map_err(|error| RuntimeError::Link {
@@ -258,8 +288,9 @@ impl Runtime {
     ) -> Result<RunOutcome, RuntimeError> {
         let started = Instant::now();
 
-        let mut store = Store::new(&self.engine, ());
-        let mut linker = Linker::new(&self.engine);
+        let mut store: Store<Option<String>> = Store::new(&self.engine, None);
+        let mut linker: Linker<Option<String>> = Linker::new(&self.engine);
+        host::install(&self.engine, &mut linker, &self.host)?;
         let mut root_instance = None;
 
         for unit in units {
@@ -302,7 +333,7 @@ impl Runtime {
 /// Shared by [`Runtime::run`] and [`Runtime::run_units`]: what an entry point must look
 /// like does not depend on how many modules were loaded to reach it.
 fn invoke(
-    store: &mut Store<()>,
+    store: &mut Store<Option<String>>,
     instance: wasmtime::Instance,
     entry: &EntryPoint,
 ) -> Result<Option<i32>, RuntimeError> {
@@ -335,11 +366,9 @@ fn invoke(
                 .map_err(|error| RuntimeError::Configuration {
                     message: error.to_string(),
                 })?;
-        typed
-            .call(&mut *store, ())
-            .map_err(|error| RuntimeError::Trap {
-                message: describe(&error),
-            })?;
+        if let Err(error) = typed.call(&mut *store, ()) {
+            return Err(classify_call(store, error));
+        }
         return Ok(None);
     }
 
@@ -395,6 +424,21 @@ fn describe(error: &WasmError) -> String {
 /// Collapses runs of whitespace so a multi-line Wasmtime message stays one line.
 fn collapse(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Decides whether a failed call was the host's fault or the guest's.
+///
+/// A host function can only report a failure by failing the call, and Wasmtime surfaces
+/// both cases as a trap. The reason a host function left in the store is what separates
+/// them: without it, "the host could not read your pointer" would be reported as
+/// "your guest trapped", and the two need different fixes.
+fn classify_call(store: &mut Store<Option<String>>, error: WasmError) -> RuntimeError {
+    match store.data_mut().take() {
+        Some(reason) => RuntimeError::Host { message: reason },
+        None => RuntimeError::Trap {
+            message: describe(&error),
+        },
+    }
 }
 
 /// Names an exported entity for an error message.

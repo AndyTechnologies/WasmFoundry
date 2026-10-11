@@ -184,6 +184,31 @@ shared. It also keeps the failure modes distinct: a syntax error and a structura
 unusable manifest are reported as the same code but with different messages, because they
 are fixed by different edits.
 
+## The Host ABI boundary
+
+```text
+guest WAT:   (import "env" "console.log" (func (param i32 i32)))
+                  │                        │
+                  │ namespace, name        │ pointer, length
+                  ▼
+wf-runtime:  HostFunction  ──►  HostBody closure, no engine type in its signature
+                  │
+                  ▼
+Guest::read_memory(ptr, len)   reads exactly [ptr, ptr+len), copies, returns bytes
+```
+
+Three rules keep the boundary from leaking:
+
+- **No engine type crosses it.** A host function body receives a `Guest`, which holds a
+  closure over the caller, not a `Caller`. A host function cannot be written in a way
+  that depends on the engine running it.
+- **The mechanism does not decide the contract.** It installs `namespace.name` with an
+  arity and a body; what the names mean, what a string is and where a message goes live
+  in `docs/abi/host-abi-v1.md`, and the runtime does not reinterpret any of it.
+- **A host failure is not a guest trap.** Wasmtime surfaces both as a trap, so the store
+  carries the reason a host function failed, and the caller reports `WF013` instead of
+  `WF009`. The two need different fixes.
+
 ### Why the error type has one variant per cause
 
 A run can fail for five unrelated reasons, and each one is fixed by a different action:

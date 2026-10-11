@@ -40,12 +40,13 @@ State values:
 
 | Capability | State | Decision | Phase |
 | --- | --- | --- | --- |
-| console | pending | preserve in the portable Host ABI | 8 |
-| fs | pending | replant; host ABI plus capability policy, defaults deny | 8–9 |
+| console | done | preserved in the portable Host ABI as `env.console.*`, with a different string convention: pointer and length in UTF-8, where the previous surface required AssemblyScript's layout | 8 |
+| fs | pending | replant: through WASI plus mounts, not as `env.fs.*`. The previous Rust guest reached the filesystem over WASI, and that path is the one being kept | 9 |
 | WASI | pending | preserve; configured from `RuntimePolicy`, never from Wasmtime types in the domain | 9 |
 | mounts | pending | preserve and improve; access defaults to read-only instead of read-write | 9 |
 | Resource limits | pending | preserve; memory limit and wall-clock timeout in the MVP, fuel later | 9 |
-| Host ABI versioning | pending | new; ABI v1 is never modified in place | 8 |
+| Host ABI versioning | done | new; ABI v1 has its own version and is never modified in place | 8 |
+| AssemblyScript compatibility ABI | pending | preserved as a separate surface: the previous `env.Math.*`, `env.Object.*`, `env.Reflect.*` family is AssemblyScript's own need, not the universal contract | 11 |
 
 ## Build behaviour
 

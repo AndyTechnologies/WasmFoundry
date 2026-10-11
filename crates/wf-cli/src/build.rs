@@ -149,7 +149,7 @@ fn check_links(manifest: &Manifest, published: &[(String, PathBuf)]) -> Result<(
         &manifest.modules,
         &imports,
         manifest.project.module_matching,
-        &manifest.project.host_namespaces,
+        &crate::project::allowed_host_namespaces(&manifest.project.host_namespaces),
     )
     .map(|_| ())
 }

@@ -54,9 +54,11 @@ file.
 - **No execution limits yet.** Until PHASE 9 `wf run` sets no wall-clock timeout and no
   memory cap. A guest may run forever or grow without bound. Treat an untrusted module
   as untrusted input and run it only where unbounded execution is acceptable to you.
-- **No host ABI yet.** Today this is isolation by *absence*: every import fails to
-  resolve because nothing is provided. When PHASE 8 adds the host ABI and PHASE 9 adds
-  WASI, isolation becomes a matter of policy, and the policy defaults to deny.
+- **The console ABI reads guest memory, and nothing else.** Since PHASE 8 every import
+  under `env.console.*` resolves. Each function reads the range the guest pointed at and
+  writes it to a stream; none writes into guest memory, allocates for the guest, or
+  reaches the filesystem, the network, the environment or a host process. A range the
+  guest did not grant is refused with `WF013` rather than read.
 
 **Residual risk after PHASE 9:** a Wasmtime engine bug. This is an upstream dependency
 risk, tracked by `cargo-audit` in PHASE 19, not something WasmFoundry can fix.

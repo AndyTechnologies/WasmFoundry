@@ -8,10 +8,9 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 7.** Two guest toolchains — a precompiled module, and a Rust crate
-> compiled by `cargo` — and a project can be made of several modules that import from
-> each other: `wf build` resolves the graph, `wf run` instantiates them in dependency
-> order. Everything else is still ahead — see [Status](#status).
+> **Status: PHASE 8.** Two guest toolchains, multi-module composition, and the first
+> Host ABI: a guest can import `env.console.log` and print. Everything else is still
+> ahead — see [Status](#status).
 
 ---
 
@@ -240,6 +239,7 @@ Diagnostic codes, also stable:
 | `WF010` | The entry point exists but cannot be invoked as written |
 | `WF011` | The manifest does not mean what it appears to mean |
 | `WF012` | A toolchain ran and did not produce a module |
+| `WF013` | A host function failed while the guest was calling it |
 
 A guest returning a value from its entry point is reported as output, not converted into
 this process's exit code: that mapping is a host-ABI decision, and the host ABI arrives in

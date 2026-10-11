@@ -58,6 +58,23 @@ impl ProjectOrder {
     }
 }
 
+/// What the build is allowed to leave unsatisfied.
+///
+/// The runtime's own namespaces are included without being written down: they are a
+/// product decision, not a project one, and requiring every guest that prints to declare
+/// `host_namespaces` would be ceremony around it.
+pub fn allowed_host_namespaces(declared: &[String]) -> Vec<String> {
+    declared
+        .iter()
+        .cloned()
+        .chain(
+            wf_runtime::PROVIDED
+                .iter()
+                .map(|namespace| (*namespace).to_owned()),
+        )
+        .collect()
+}
+
 /// Resolves every import and orders the modules for loading.
 ///
 /// An import that matches no project module is left alone rather than reported: it is

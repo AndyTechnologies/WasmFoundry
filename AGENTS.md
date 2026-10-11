@@ -14,9 +14,19 @@ repository.
 
 Violating any of these is a defect, regardless of how convenient the alternative is.
 
-1. **Never touch the legacy repository.** It is a separate repository on its own branch
-   and tag, kept as the frozen historical record. Do not open it, do not write to it, do
-   not "fix" it, do not copy code out of it. It is evidence, not a dependency.
+1. **Never write to the legacy repository.** It is a separate repository on its own
+   branch and tag, kept as the frozen historical record: do not write to it, do not "fix"
+   it, do not copy implementation code out of it, do not rebase or delete its branches.
+
+   **Reading it is allowed, and is sometimes required.** The master plan asks for the
+   previous implementation as evidence — its host ABI signatures, its string layout, its
+   edge cases — and a decision made without that evidence is a guess. Read it to find out
+   *what a contract was*; never read it to find out *how to structure this codebase*.
+
+   Two rules follow: the read is evidence, so what is extracted goes into a document or a
+   test, not into a file that resembles the original; and the legacy API is evidence, not
+   an obligation — functional parity is tracked in `docs/parity-matrix.md`, and binary
+   compatibility is a product decision, not a default.
 2. **No hand-written WebAssembly parser.** All binary decoding goes through
    `wasmparser`. Do not add a custom reader, LEB128 decoder, section walker or
    validator. The single allowed exception is the fixed eight-byte binary header, because

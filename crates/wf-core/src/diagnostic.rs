@@ -25,6 +25,8 @@ pub enum DiagnosticCode {
     MissingEntrypoint,
     /// `WF009` — the guest faulted while executing.
     RuntimeTrap,
+    /// `WF013` — a host function failed while the guest was calling it.
+    HostFailure,
     /// `WF010` — the entry point exists but cannot be invoked as written.
     EntrypointUnsuitable,
     /// `WF011` — the manifest does not mean what it appears to mean.
@@ -42,6 +44,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::MissingToolchain => "WF004",
             DiagnosticCode::MissingEntrypoint => "WF005",
             DiagnosticCode::RuntimeTrap => "WF009",
+            DiagnosticCode::HostFailure => "WF013",
             DiagnosticCode::EntrypointUnsuitable => "WF010",
             DiagnosticCode::InvalidManifest => "WF011",
             DiagnosticCode::ToolchainFailed => "WF012",

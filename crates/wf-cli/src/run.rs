@@ -51,7 +51,10 @@ pub fn run(args: &RunArgs) -> i32 {
         }
     };
 
-    let runtime = Runtime::default();
+    // The whole portable console ABI, decided once per run: what a guest can reach from
+    // the host is a property of the invocation, not of the binary. See
+    // docs/abi/host-abi-v1.md.
+    let runtime = Runtime::with_host_functions(wf_runtime::console());
 
     match planned {
         Planned::Module(path) => {
@@ -191,7 +194,7 @@ fn project_plan() -> Result<Planned, i32> {
         &manifest.modules,
         &imports,
         manifest.project.module_matching,
-        &manifest.project.host_namespaces,
+        &crate::project::allowed_host_namespaces(&manifest.project.host_namespaces),
     )
     .map_err(|diagnostic| {
         eprintln!("{diagnostic}");
