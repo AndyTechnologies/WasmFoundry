@@ -209,6 +209,29 @@ Three rules keep the boundary from leaking:
   carries the reason a host function failed, and the caller reports `WF013` instead of
   `WF009`. The two need different fixes.
 
+## Applying a policy
+
+```text
+RuntimePolicy (domain)          one description of one invocation
+        │
+        ▼  wf-runtime/src/policy.rs
+Engine     epoch interruption, only when a wall-clock budget exists
+Store      carries: WASI context (or none), memory ceiling, the reason a host
+           function failed, and the flag a watchdog sets
+Linker     WASI registered only when the policy granted it
+```
+
+Three rules hold it together:
+
+- **The domain never learns engine vocabulary.** `FilesystemAccess` says read-only; the
+  adapter decides what that means for `wasmtime-wasi`. The policy type carries no engine
+  type and no handle.
+- **Denied is absence, not permission-with-nothing.** A guest whose project did not ask
+  for WASI has no WASI imports in the linker at all, so it fails as an unresolved import
+  rather than running with every permission removed.
+- **A bound that is not stated is not enforced.** Reading an absent limit as zero would
+  stop every run; inventing a small one would be a policy nobody chose.
+
 ### Why the error type has one variant per cause
 
 A run can fail for five unrelated reasons, and each one is fixed by a different action:

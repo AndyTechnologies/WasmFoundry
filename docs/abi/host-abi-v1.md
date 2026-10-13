@@ -220,10 +220,15 @@ As `warn`.
 `(param i32 i32 i32)` — condition, pointer, length. Writes `Assertion failed: <message>`
 to standard error when the condition is zero; otherwise writes nothing. Never traps.
 
-### `env.console.time`, `timeLog`, `timeEnd` — lands in PHASE 9
+### `env.console.time`, `timeLog`, `timeEnd` — specified, not implemented
 
-Specified here, not implemented. They need a clock, and a clock is a capability the
-PHASE 9 policy decides on rather than one the host hands out by default.
+They need a clock, and a clock is a capability. PHASE 9 built the capability policy —
+mounts, WASI, bounds — but did not add a clock to it, so these three functions do not
+exist and a guest that imports them gets `WF002`.
+
+They stay here as the specification they will be built against: `(param i32 i32)`, a
+pointer and a length naming the label, writing to standard error. Adding them is one
+capability and three host functions, and no change to this document.
 
 ### Not in this ABI
 

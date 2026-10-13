@@ -8,9 +8,10 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 8.** Two guest toolchains, multi-module composition, and the first
-> Host ABI: a guest can import `env.console.log` and print. Everything else is still
-> ahead — see [Status](#status).
+> **Status: PHASE 9.** Two guest toolchains, multi-module composition, the Host ABI, and
+> WASI under an explicit policy: mounts, capabilities granted rather than assumed, and
+> bounds that stop a guest that crosses them. Everything else is still ahead — see
+> [Status](#status).
 
 ---
 
@@ -151,6 +152,24 @@ source = "src/hello.wasm"
 toolchain = "precompiled"
 ```
 
+A project may state what its runtime is allowed to do:
+
+```toml
+[runtime]
+wasi = true                     # denied unless asked for
+wall_clock_seconds = 5.0        # no bound unless asked for
+memory_pages = 4096             # one page is 64 KiB
+
+[[mount]]
+host = "./data"
+guest = "/data"                 # absolute: a guest path is a name in the guest's world
+access = "read-only"            # the default
+```
+
+Everything is denied unless the manifest asks. A guest that imports WASI without
+`wasi = true` builds fine and fails when it calls — asking for a capability and being
+granted it are two different things.
+
 A project may hold several modules. An import names a namespace, and a module's namespace
 is either stated in the manifest or derived from the matching mode:
 
@@ -240,6 +259,7 @@ Diagnostic codes, also stable:
 | `WF011` | The manifest does not mean what it appears to mean |
 | `WF012` | A toolchain ran and did not produce a module |
 | `WF013` | A host function failed while the guest was calling it |
+| `WF014` | An invocation exceeded a bound the policy set |
 
 A guest returning a value from its entry point is reported as output, not converted into
 this process's exit code: that mapping is a host-ABI decision, and the host ABI arrives in
@@ -289,9 +309,10 @@ Two trust boundaries exist in this product, and they are not the same thing.
 network, environment or process access, because there is nothing to give it. There is no
 host ABI yet, so every import fails to resolve rather than reaching the host.
 
-**`wf run` has no execution limits yet.** Until PHASE 9 it sets no wall-clock timeout and
-no memory cap, so a guest can run forever or grow its memory without bound. Run modules
-you do not trust only where that is acceptable to you; this is stated rather than implied.
+**`wf run` is bounded when the project asks for it.** A wall-clock budget and a memory
+ceiling are set in the manifest, and a guest that crosses one is stopped and reported as
+`WF014`. A project that sets neither runs unbounded, which is the honest reading of
+asking for no bound.
 
 **`wf build` will not sandbox anything.** When it arrives in PHASE 5 it will run the guest
 toolchain — `build.rs`, compilers, package managers, scripts — with the permissions of

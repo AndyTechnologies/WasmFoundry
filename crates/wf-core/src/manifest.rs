@@ -11,12 +11,25 @@ use crate::diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub struct Manifest {
     /// Schema version of the file. Must be one this version understands.
     pub schema: u32,
+    /// Directories the guest may see.
+    pub mounts: Vec<crate::Mount>,
+    /// What the runtime is allowed to do for this project.
+    pub runtime: RuntimeSettings,
     /// Identity of the package the manifest describes.
     pub package: Package,
     /// Project-wide settings.
     pub project: Project,
     /// The modules this project produces, in manifest order.
     pub modules: Vec<ModuleSpec>,
+}
+
+/// What the runtime does for one project.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RuntimeSettings {
+    /// Whether the guest may use WASI.
+    pub wasi: bool,
+    /// The bounds the guest runs under.
+    pub limits: crate::ExecutionLimits,
 }
 
 /// Package identity.
@@ -70,6 +83,17 @@ pub struct ModuleSpec {
 pub const SUPPORTED_SCHEMA: u32 = 1;
 
 impl Manifest {
+    /// The policy this project's runtime should apply.
+    ///
+    /// Pure construction from the manifest: the policy is the domain's description of
+    /// one invocation, and the manifest is where a project states it.
+    pub fn policy(&self) -> crate::RuntimePolicy {
+        if !self.runtime.wasi && self.mounts.is_empty() {
+            return crate::RuntimePolicy::denied();
+        }
+        crate::RuntimePolicy::wasi(self.mounts.clone(), self.runtime.limits)
+    }
+
     /// Checks that this manifest means what it appears to mean.
     ///
     /// Returns every structural problem found, so a reader sees all of them at once
@@ -146,6 +170,18 @@ impl Manifest {
                     "the manifest declares no modules",
                 )
                 .with_help("add a `[[module]]` table with a name, a source and a toolchain"),
+            );
+        }
+
+        // Mounts are stated in the manifest, so their problems are manifest problems: a
+        // relative guest path or two directories claiming one path is a mistake to report
+        // before anything runs, not a confusing failure from inside the engine.
+        for problem in self.policy().validate() {
+            diagnostics.push(
+                Diagnostic::new(DiagnosticCode::InvalidManifest, Severity::Error, problem)
+                    .with_help(
+                        "a guest path is absolute, and only one directory can be mounted at it",
+                    ),
             );
         }
 

@@ -25,6 +25,9 @@ repository = "https://github.com/AndyTechnologies/WasmFoundry"
 [workspace.dependencies]
 # Execution host for `wf run` (PHASE 4+). Minimal feature set: no WASI, no
 # component model, no async support. `wasmtime-wasi` arrives in PHASE 9.
+# WASI for guests that opt into it. The synchronous API only.
+wasmtime-wasi = "49.0.2"
+
 wasmtime = { version = "49.0.1", default-features = false, features = [
     "std",
     "runtime",

@@ -26,6 +26,33 @@ struct ManifestFile {
     project: ProjectFile,
     #[serde(default)]
     module: Vec<ModuleFile>,
+    /// Directories the guest may see. Denied unless a project asks for them.
+    #[serde(default)]
+    r#mount: Vec<MountFile>,
+    #[serde(default)]
+    runtime: RuntimeFile,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MountFile {
+    host: String,
+    guest: String,
+    /// Parsed as text and interpreted by the domain.
+    #[serde(default)]
+    access: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct RuntimeFile {
+    #[serde(default)]
+    wasi: Option<bool>,
+    /// Seconds, as a float: half a second is a legitimate budget.
+    #[serde(default)]
+    wall_clock_seconds: Option<f64>,
+    #[serde(default)]
+    memory_pages: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -105,8 +132,40 @@ pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
         .with_help("check the syntax; the schema is documented in docs/product.md")
     })?;
 
+    let mut mounts = Vec::with_capacity(file.r#mount.len());
+    for mount in file.r#mount {
+        let access = match mount.access.as_deref() {
+            None | Some("read-only") => wf_core::FilesystemAccess::ReadOnly,
+            Some("read-write") => wf_core::FilesystemAccess::ReadWrite,
+            Some(other) => {
+                return Err(Diagnostic::new(
+                    DiagnosticCode::InvalidManifest,
+                    Severity::Error,
+                    format!(
+                        "{MANIFEST_FILE} is not a valid manifest: unknown mount access `{other}`"
+                    ),
+                )
+                .with_help("set `access = \"read-only\"` or `= \"read-write\"`"));
+            }
+        };
+        mounts.push(wf_core::Mount::new(mount.host, mount.guest, access));
+    }
+
+    let limits = wf_core::ExecutionLimits::bounded(
+        file.runtime
+            .wall_clock_seconds
+            .filter(|seconds| *seconds > 0.0)
+            .map(std::time::Duration::from_secs_f64),
+        file.runtime.memory_pages.filter(|pages| *pages > 0),
+    );
+
     Ok(Manifest {
         schema: file.schema,
+        mounts,
+        runtime: wf_core::RuntimeSettings {
+            wasi: file.runtime.wasi.unwrap_or(false),
+            limits,
+        },
         package: Package {
             name: file.package.name,
             version: file.package.version,
@@ -304,5 +363,83 @@ toolchain = "precompiled"
                 }
             }
         }
+    }
+
+    /// A budget that is not positive is not a bound.
+    ///
+    /// Reading `-3` as "three seconds" would be inventing a permission the author never
+    /// granted, and reading it as "zero seconds" would stop every run. Not enforcing one
+    /// is the only answer that does not guess.
+    #[test]
+    fn a_non_positive_budget_is_not_enforced() {
+        for text in [
+            "wall_clock_seconds = -3",
+            "wall_clock_seconds = 0.0",
+            "memory_pages = 0",
+        ] {
+            let manifest = parse(&SAMPLE.replace(
+                "[package]",
+                &format!("[runtime]\nwasi = true\n{text}\n\n[package]"),
+            ))
+            .expect("the manifest still parses");
+
+            assert_eq!(
+                manifest.runtime.limits.wall_clock(),
+                None,
+                "`{text}` must not become a bound"
+            );
+            assert_eq!(manifest.runtime.limits.memory_pages(), None);
+        }
+    }
+
+    /// The runtime section states what a project asks for, and the policy says it back.
+    #[test]
+    fn the_runtime_section_becomes_the_policy() {
+        let manifest = parse(&SAMPLE.replace(
+            "[package]",
+            "[runtime]\nwasi = true\nwall_clock_seconds = 2.5\nmemory_pages = 128\n\n[package]",
+        ))
+        .expect("parses");
+
+        let policy = manifest.policy();
+        assert!(policy.wasi_enabled());
+        assert_eq!(
+            policy.limits().wall_clock(),
+            Some(std::time::Duration::from_secs_f64(2.5))
+        );
+        assert_eq!(policy.limits().memory_pages(), Some(128));
+    }
+
+    /// A mount is read into the manifest, with its access.
+    #[test]
+    fn a_mount_is_parsed_with_its_access() {
+        let manifest = parse(&SAMPLE.replace(
+            "[package]",
+            "[[mount]]\nhost = \"./data\"\nguest = \"/data\"\naccess = \"read-write\"\n\n[package]",
+        ))
+        .expect("parses");
+
+        assert_eq!(manifest.mounts.len(), 1);
+        assert_eq!(manifest.mounts[0].host(), "./data");
+        assert_eq!(manifest.mounts[0].guest(), "/data");
+        assert_eq!(
+            manifest.mounts[0].access(),
+            wf_core::FilesystemAccess::ReadWrite
+        );
+    }
+
+    /// A mount without an access is read-only, which is the answer a default should give.
+    #[test]
+    fn a_mount_without_an_access_is_read_only() {
+        let manifest = parse(&SAMPLE.replace(
+            "[package]",
+            "[[mount]]\nhost = \"./data\"\nguest = \"/data\"\n\n[package]",
+        ))
+        .expect("parses");
+
+        assert_eq!(
+            manifest.mounts[0].access(),
+            wf_core::FilesystemAccess::ReadOnly
+        );
     }
 }

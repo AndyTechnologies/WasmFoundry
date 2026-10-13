@@ -9,13 +9,6 @@ use crate::host::HostFunction;
 /// The namespace every portable host function lives in.
 pub const NAMESPACE: &str = "env";
 
-/// Namespaces this runtime provides on its own.
-///
-/// A build treats them as already satisfied: they are not project modules and never will
-/// be, so making every guest declare `host_namespaces = ["env"]` before it can print
-/// would be ceremony around a product decision the product already made.
-pub const PROVIDED: &[&str] = &[NAMESPACE];
-
 /// Which stream a message goes to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stream {

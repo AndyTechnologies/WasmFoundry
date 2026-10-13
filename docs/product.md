@@ -54,7 +54,7 @@ Each phase delivers one observable capability and must pass its gate before the 
 | 6 | Rust guest toolchain | ✅ Rust source → wasm → run |
 | 7 | Dependency graph, module matching | ✅ module A imports module B, both run |
 | 8 | Host ABI v1 | documented namespaces, signatures, ownership |
-| 9 | WASI, mounts, capability policy, execution limits | denied by default, granted explicitly, bounded execution |
+| 9 | WASI, mounts, capability policy, execution limits | ✅ denied by default, granted explicitly, bounded execution |
 | 10 | C++ toolchain | C++ source → wasm → run |
 | 11 | AssemblyScript toolchain | AS source → wasm → run |
 | 12 | Cache | cold miss, warm hit, correct invalidation |
@@ -105,6 +105,11 @@ environment and host process execution are all granted explicitly, never inferre
 `build.rs`, compilers, package managers, and any script the project defines. Those
 processes run with the permissions of the user who invoked `wf build`. The Wasmtime
 sandbox does not protect against them, and the product never claims it does.
+
+Since PHASE 9, `wf run` is bounded when a project asks for it: a wall-clock budget and a
+memory ceiling stop a guest that crosses them, and a project that states neither runs
+unbounded rather than under a number nobody chose. WASI appears only when a manifest
+grants it, with the mounts that manifest declared and nothing else.
 
 Since PHASE 6, `wf build` invokes `cargo`, so building a Rust project executes its
 `build.rs` with the permissions of the user who ran `wf build`. Nothing about that is

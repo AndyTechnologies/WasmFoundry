@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use wasmtime::{Caller, FuncType, Linker, Val, ValType};
 
+use crate::policy::HostState;
+
 /// What a host function's body is: the guest it is running against, the arguments the
 /// guest passed, and the value it may return.
 ///
@@ -99,7 +101,7 @@ impl Guest<'_> {
 
 /// Reads a range out of a caller's exported memory.
 fn read_range(
-    caller: &mut Caller<'_, Option<String>>,
+    caller: &mut Caller<'_, HostState>,
     pointer: i32,
     length: i32,
 ) -> Result<Vec<u8>, HostError> {
@@ -175,7 +177,7 @@ impl std::error::Error for HostError {}
 /// host surface and the guest set are decided in the same run.
 pub(crate) fn install(
     engine: &wasmtime::Engine,
-    linker: &mut Linker<Option<String>>,
+    linker: &mut Linker<HostState>,
     functions: &[HostFunction],
 ) -> Result<(), crate::RuntimeError> {
     // Every host function in the v1 ABI takes the same two arguments — a pointer and a
@@ -227,7 +229,7 @@ pub(crate) fn install(
                     // Wasmtime surfaces that as a trap. Recording the reason is what lets
                     // the caller tell "the host refused" from "the guest faulted", which
                     // need different fixes.
-                    *caller.data_mut() = Some(error.to_string());
+                    caller.data_mut().host_error = Some(error.to_string());
                     return Err(wasmtime::Error::msg(error.to_string()));
                 }
 

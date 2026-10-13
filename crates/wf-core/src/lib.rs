@@ -74,7 +74,9 @@
 //!   roots, leaves, topological order and cycle detection.
 //!   **Introduced in PHASE 7** ([`DependencyGraph`]).
 //! - `RuntimePolicy` — the set of capabilities a guest invocation is allowed
-//!   (WASI, mounts, host ABI), validated independently of any engine. PHASE 9.
+//!   (WASI, mounts, host ABI), validated independently of any engine.
+//!   **Introduced in PHASE 9** ([`RuntimePolicy`]), together with
+//!   [`FilesystemAccess`], [`Mount`] and [`ExecutionLimits`].
 //! - `Fingerprint` — the content-derived identity of a build input, used by
 //!   cache lookups once caching exists. PHASE 12.
 //!
@@ -89,16 +91,18 @@ mod graph;
 mod manifest;
 mod matching;
 mod name_error;
+mod policy;
 mod toolchain;
 
 pub use artifact::{Artifact, ArtifactId, ArtifactKind};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use entry_point::EntryPoint;
 pub use graph::{Dependency, DependencyGraph, GraphError, ModuleId};
-pub use manifest::{Manifest, ModuleSpec, Package, Project, SUPPORTED_SCHEMA};
+pub use manifest::{Manifest, ModuleSpec, Package, Project, RuntimeSettings, SUPPORTED_SCHEMA};
 pub use matching::{
     ModuleMatching, ParseModuleMatchingError, ResolveError, matching_modules, namespace_of,
     resolve_module,
 };
 pub use name_error::NameError;
+pub use policy::{ExecutionLimits, FilesystemAccess, Mount, RuntimePolicy};
 pub use toolchain::{GuestTarget, ToolchainId};

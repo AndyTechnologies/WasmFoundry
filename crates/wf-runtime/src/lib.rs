@@ -50,9 +50,13 @@
 
 mod console;
 mod host;
+mod policy;
 
-pub use console::{PROVIDED, console};
+pub use console::console;
 pub use host::{Guest, HostError, HostFunction};
+pub use policy::Limit;
+
+use policy::HostState;
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -60,7 +64,16 @@ use std::time::{Duration, Instant};
 
 use wasmtime::{Error as WasmError, Extern, Linker, Module as WasmtimeModule, Store, ValType};
 
-use wf_core::{DiagnosticCode, EntryPoint};
+use wf_core::{DiagnosticCode, EntryPoint, RuntimePolicy};
+
+/// Namespaces this runtime knows how to provide.
+///
+/// A build treats them as already satisfied, because they are not project modules and
+/// never will be: making every guest that prints declare `host_namespaces = ["env"]`
+/// would be ceremony around a decision the product already made. Whether a guest
+/// actually *gets* one is the policy's business — asking for WASI and not granting it
+/// builds fine and fails when the guest calls it.
+pub const PROVIDED: &[&str] = &[console::NAMESPACE, "wasi_snapshot_preview1"];
 
 /// Executes WebAssembly binaries.
 ///
@@ -72,6 +85,8 @@ pub struct Runtime {
     /// What a guest is allowed to import from the host. Empty means nothing, which is
     /// exactly right for a module that calls no host function.
     host: Vec<HostFunction>,
+    /// What this invocation is allowed to do: WASI, mounts, and its bounds.
+    policy: RuntimePolicy,
 }
 
 /// A compiled WebAssembly binary.
@@ -176,6 +191,13 @@ pub enum RuntimeError {
         /// What the host function objected to.
         message: String,
     },
+    /// An invocation exceeded a bound the policy set.
+    Limit {
+        /// Which bound it was.
+        limit: Limit,
+        /// What happened, with the policy's numbers in it where they exist.
+        message: String,
+    },
     /// The entry point exists but is not something this runtime can invoke.
     Configuration {
         /// What the export actually is, and what the runtime supports.
@@ -195,6 +217,7 @@ impl RuntimeError {
             RuntimeError::MissingExport { .. } => DiagnosticCode::MissingEntrypoint,
             RuntimeError::Trap { .. } => DiagnosticCode::RuntimeTrap,
             RuntimeError::Host { .. } => DiagnosticCode::HostFailure,
+            RuntimeError::Limit { .. } => DiagnosticCode::LimitExceeded,
             RuntimeError::Configuration { .. } => DiagnosticCode::EntrypointUnsuitable,
         }
     }
@@ -212,6 +235,7 @@ impl fmt::Display for RuntimeError {
             }
             RuntimeError::Trap { message } => write!(f, "guest trapped: {message}"),
             RuntimeError::Host { message } => write!(f, "host function failed: {message}"),
+            RuntimeError::Limit { limit, message } => write!(f, "{limit}: {message}"),
             RuntimeError::Configuration { message } => {
                 write!(f, "cannot invoke entry point: {message}")
             }
@@ -227,10 +251,25 @@ impl Runtime {
     /// The surface is decided here, once per run, rather than per module: what a guest
     /// can reach is a property of the invocation, not of the binary it happens to be.
     pub fn with_host_functions(host: Vec<HostFunction>) -> Self {
+        Runtime::with_policy(host, RuntimePolicy::denied())
+    }
+
+    /// Builds a runtime whose guests get exactly `host` and exactly `policy`.
+    ///
+    /// Both are decided once per run. Capabilities are properties of the invocation, not
+    /// of the binary being run: the same module may be granted a mount in one run and
+    /// none in the next.
+    pub fn with_policy(host: Vec<HostFunction>, policy: RuntimePolicy) -> Self {
         Runtime {
-            engine: wasmtime::Engine::default(),
+            engine: policy::engine_for(&policy),
             host,
+            policy,
         }
+    }
+
+    /// The policy this runtime applies to every invocation.
+    pub fn policy(&self) -> &RuntimePolicy {
+        &self.policy
     }
 
     /// Compiles bytes into a reusable [`Module`].
@@ -252,10 +291,15 @@ impl Runtime {
     pub fn run(&self, module: &Module, entry: &EntryPoint) -> Result<RunOutcome, RuntimeError> {
         let started = Instant::now();
 
-        // The store carries one slot: the reason a host function failed, if one did. It
-        // is what turns a trap into a host failure when the host was the one that broke.
-        let mut store: Store<Option<String>> = Store::new(&self.engine, None);
-        let mut linker: Linker<Option<String>> = Linker::new(&self.engine);
+        let mut store: Store<HostState> =
+            Store::new(&self.engine, policy::state_for(&self.policy)?);
+        store.limiter(|state| &mut state.engine_limits);
+        // Arming the watchdog is what makes a timeout detectable: the flag it sets lives
+        // in the store, and `classify_call` reads it from there.
+        policy::arm_timeout(&self.engine, &mut store, self.policy.limits().wall_clock());
+
+        let mut linker: Linker<HostState> = Linker::new(&self.engine);
+        policy::install_wasi(&mut linker, &self.policy)?;
         host::install(&self.engine, &mut linker, &self.host)?;
         let instance = linker
             .instantiate(&mut store, &module.inner)
@@ -288,8 +332,15 @@ impl Runtime {
     ) -> Result<RunOutcome, RuntimeError> {
         let started = Instant::now();
 
-        let mut store: Store<Option<String>> = Store::new(&self.engine, None);
-        let mut linker: Linker<Option<String>> = Linker::new(&self.engine);
+        let mut store: Store<HostState> =
+            Store::new(&self.engine, policy::state_for(&self.policy)?);
+        store.limiter(|state| &mut state.engine_limits);
+        // Arming the watchdog is what makes a timeout detectable: the flag it sets lives
+        // in the store, and `classify_call` reads it from there.
+        policy::arm_timeout(&self.engine, &mut store, self.policy.limits().wall_clock());
+
+        let mut linker: Linker<HostState> = Linker::new(&self.engine);
+        policy::install_wasi(&mut linker, &self.policy)?;
         host::install(&self.engine, &mut linker, &self.host)?;
         let mut root_instance = None;
 
@@ -333,7 +384,7 @@ impl Runtime {
 /// Shared by [`Runtime::run`] and [`Runtime::run_units`]: what an entry point must look
 /// like does not depend on how many modules were loaded to reach it.
 fn invoke(
-    store: &mut Store<Option<String>>,
+    store: &mut Store<HostState>,
     instance: wasmtime::Instance,
     entry: &EntryPoint,
 ) -> Result<Option<i32>, RuntimeError> {
@@ -426,19 +477,39 @@ fn collapse(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Decides whether a failed call was the host's fault or the guest's.
+/// Decides what a failed call actually was.
 ///
-/// A host function can only report a failure by failing the call, and Wasmtime surfaces
-/// both cases as a trap. The reason a host function left in the store is what separates
-/// them: without it, "the host could not read your pointer" would be reported as
-/// "your guest trapped", and the two need different fixes.
-fn classify_call(store: &mut Store<Option<String>>, error: WasmError) -> RuntimeError {
-    match store.data_mut().take() {
-        Some(reason) => RuntimeError::Host { message: reason },
-        None => RuntimeError::Trap {
-            message: describe(&error),
-        },
+/// Three things reach here looking identical — a host function that could not answer,
+/// an invocation that ran out of time, and a guest that faulted — and they need
+/// different fixes. The state each one left behind is what separates them, because
+/// Wasmtime presents all three as a failed call.
+fn classify_call(store: &Store<HostState>, error: WasmError) -> RuntimeError {
+    let state = store.data();
+
+    if let Some(reason) = state.host_error.clone() {
+        return RuntimeError::Host { message: reason };
     }
+
+    if policy::was_interrupted(&state.timed_out) {
+        return RuntimeError::Limit {
+            limit: Limit::WallClock,
+            message: policy::limit_message(Limit::WallClock, &state.limits),
+        };
+    }
+
+    let message = describe(&error);
+
+    // A growth refused by the store's limits is an allocation the policy stopped, not a
+    // bug in the guest — unless no ceiling was configured, in which case the wording is
+    // a coincidence and the trap is whatever the guest did.
+    if state.memory_limit.is_some() && message.contains(policy::MEMORY_LIMIT_PHRASE) {
+        return RuntimeError::Limit {
+            limit: Limit::Memory,
+            message: policy::limit_message(Limit::Memory, &state.limits),
+        };
+    }
+
+    RuntimeError::Trap { message }
 }
 
 /// Names an exported entity for an error message.

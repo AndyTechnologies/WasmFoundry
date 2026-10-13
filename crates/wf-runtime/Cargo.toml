@@ -21,6 +21,11 @@ repository.workspace = true
 # explicitly forbidden.
 wasmtime = { workspace = true }
 
+# WASI for guests that opt into it. Tokio comes along transitively, which the plan allows
+# as a fact about the dependency and not as a licence to design around it: everything
+# here uses the synchronous API.
+wasmtime-wasi = { workspace = true }
+
 # Domain vocabulary: the entry point a run resolves is a domain value, not a string
 # the runtime happens to look for. This is the one path every crate may depend on.
 wf-core = { workspace = true }

@@ -35,8 +35,14 @@ enum Planned {
 
 /// Runs `wf run` and returns the process exit code.
 pub fn run(args: &RunArgs) -> i32 {
-    let planned = match &args.path {
-        Some(path) => Planned::Module(path.clone()),
+    // A path on the command line runs one module with no project policy at all: there
+    // is no manifest to state one. A project run carries the policy its manifest
+    // declared, mounts, bounds and all.
+    let (planned, policy) = match &args.path {
+        Some(path) => (
+            Planned::Module(path.clone()),
+            wf_core::RuntimePolicy::denied(),
+        ),
         None => match project_plan() {
             Ok(planned) => planned,
             Err(code) => return code,
@@ -54,7 +60,7 @@ pub fn run(args: &RunArgs) -> i32 {
     // The whole portable console ABI, decided once per run: what a guest can reach from
     // the host is a property of the invocation, not of the binary. See
     // docs/abi/host-abi-v1.md.
-    let runtime = Runtime::with_host_functions(wf_runtime::console());
+    let runtime = Runtime::with_policy(wf_runtime::console(), policy);
 
     match planned {
         Planned::Module(path) => {
@@ -132,7 +138,10 @@ fn report_outcome(what: &str, outcome: &wf_runtime::RunOutcome) -> i32 {
 /// The order comes from the same resolution `wf build` validates: an import binds by the
 /// manifest's matching rule, and a module is published under its exports before whatever
 /// needs it is instantiated.
-fn project_plan() -> Result<Planned, i32> {
+type ProjectPlan = (Planned, wf_core::RuntimePolicy);
+
+/// Locates and orders the project's modules, and reads the policy they run under.
+fn project_plan() -> Result<ProjectPlan, i32> {
     if !Path::new(MANIFEST_FILE).exists() {
         eprintln!("wf: no {MANIFEST_FILE} in this directory");
         eprintln!("  help: pass a path to a module, or run `wf init <name>` to create a project");
@@ -227,15 +236,27 @@ fn project_plan() -> Result<Planned, i32> {
         })
         .collect();
 
-    Ok(Planned::Project {
-        units,
-        root: namespace_of(
-            manifest.project.module_matching,
-            &manifest.modules[root_index],
-        )
-        .unwrap_or(&manifest.modules[root_index].name)
-        .to_owned(),
-    })
+    // A policy that cannot be applied has to be reported before anything runs: a mount
+    // pointing at nothing, or two mounts claiming one path, would otherwise surface as
+    // a confusing failure from inside the engine.
+    let policy = manifest.policy();
+    if let Some(problem) = policy.validate().first() {
+        eprintln!("WF011: {problem}");
+        return Err(EXIT_DIAGNOSTIC);
+    }
+
+    Ok((
+        Planned::Project {
+            units,
+            root: namespace_of(
+                manifest.project.module_matching,
+                &manifest.modules[root_index],
+            )
+            .unwrap_or(&manifest.modules[root_index].name)
+            .to_owned(),
+        },
+        policy,
+    ))
 }
 
 /// Where a module's published artifact lives.

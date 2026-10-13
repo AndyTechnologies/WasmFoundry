@@ -27,6 +27,8 @@ pub enum DiagnosticCode {
     RuntimeTrap,
     /// `WF013` — a host function failed while the guest was calling it.
     HostFailure,
+    /// `WF014` — an invocation exceeded a bound the policy set.
+    LimitExceeded,
     /// `WF010` — the entry point exists but cannot be invoked as written.
     EntrypointUnsuitable,
     /// `WF011` — the manifest does not mean what it appears to mean.
@@ -45,6 +47,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::MissingEntrypoint => "WF005",
             DiagnosticCode::RuntimeTrap => "WF009",
             DiagnosticCode::HostFailure => "WF013",
+            DiagnosticCode::LimitExceeded => "WF014",
             DiagnosticCode::EntrypointUnsuitable => "WF010",
             DiagnosticCode::InvalidManifest => "WF011",
             DiagnosticCode::ToolchainFailed => "WF012",

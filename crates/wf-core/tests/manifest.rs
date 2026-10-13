@@ -11,6 +11,8 @@ use wf_core::{DiagnosticCode, Manifest, ModuleSpec, Package, Project, Severity};
 fn valid_manifest() -> Manifest {
     Manifest {
         schema: 1,
+        mounts: Vec::new(),
+        runtime: wf_core::RuntimeSettings::default(),
         package: Package {
             name: "hello".to_owned(),
             version: "0.1.0".to_owned(),
@@ -61,6 +63,8 @@ fn an_unknown_schema_is_not_partially_interpreted() {
     // the fields it happens to share would produce a project that looks valid and is not.
     let manifest = Manifest {
         schema: 2,
+        mounts: Vec::new(),
+        runtime: wf_core::RuntimeSettings::default(),
         package: Package {
             name: String::new(),
             version: String::new(),
@@ -195,6 +199,8 @@ fn a_degenerate_manifest_never_panics() {
     // is about the field-level rules and needs to reach them.
     let manifest = Manifest {
         schema: 1,
+        mounts: Vec::new(),
+        runtime: wf_core::RuntimeSettings::default(),
         package: Package {
             name: String::new(),
             version: String::new(),

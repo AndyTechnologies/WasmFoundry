@@ -49,11 +49,22 @@ file.
 | `wf run` | every instruction, memory growth, loop bounds | Wasmtime: linear memory isolation, no host access, no imports resolved (there is no host ABI yet) | **in place, no limits** |
 | `wf build` (precompiled) | every byte of a source module | validation before publishing; a source that is not a module is rejected | **in place** |
 
-**Known gaps, stated rather than implied:**
+**Bounds, since PHASE 9.** A project states a wall-clock budget and a memory ceiling in
+its manifest. A guest that crosses either is stopped, and reported as `WF014` rather
+than as a fault of its own:
 
-- **No execution limits yet.** Until PHASE 9 `wf run` sets no wall-clock timeout and no
-  memory cap. A guest may run forever or grow without bound. Treat an untrusted module
-  as untrusted input and run it only where unbounded execution is acceptable to you.
+| Bound | How it is enforced |
+| --- | --- |
+| Wall clock | Epoch interruption, armed once per invocation; a guest that never returns is stopped |
+| Memory | The store refuses a growth beyond the ceiling and traps on it, so the allocation is named |
+
+**A project that states no bound runs unbounded.** That is deliberate: reading an absent
+limit as "zero" would stop every run, and reading it as a small number would invent a
+policy the author never chose.
+- **WASI is granted, never assumed.** A guest gets a WASI context only when the project
+  asks for one, and that context carries the standard streams and the declared mounts —
+  not the host environment, not the arguments, and not any directory that was not
+  mounted. Mounts default to read-only.
 - **The console ABI reads guest memory, and nothing else.** Since PHASE 8 every import
   under `env.console.*` resolves. Each function reads the range the guest pointed at and
   writes it to a stream; none writes into guest memory, allocates for the guest, or
