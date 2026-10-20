@@ -1,0 +1,24 @@
+[package]
+name = "wf-toolchains"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# PHASE 10: the plan (`plan.md` #61) creates this crate when the toolchain surface
+# grows its dependency reach (clang, sysroots). `wf-cli` keeps only parsing and
+# output: the guest toolchains live here.
+
+[dependencies]
+# Domain types shared with every crate: ToolchainId, ModuleSpec, Diagnostic.
+wf-core = { workspace = true }
+# A toolchain must validate the bytes it publishes before they land in `target/`
+# (see `docs/security/threat-model.md`, class A: a source that is not a module is
+# rejected). The analysis belongs to `wf-wasm`, so this crate depends on it rather
+# than re-parsing anything by hand.
+wf-wasm = { workspace = true }
+# The Rust adapter reads the guest crate's `Cargo.toml` to predict the artifact name.
+toml = "0.9"
+
+[dev-dependencies]
+# Test-only: fixtures are assembled from readable WAT source.
+wat = "1.238"

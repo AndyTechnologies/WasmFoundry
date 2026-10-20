@@ -2,7 +2,7 @@
 //!
 //! It reads the manifest, resolves each module to a toolchain and reports what each one
 //! produced. No compiler knowledge lives here: which toolchain handles a manifest value,
-//! and how it is invoked, belong to [`crate::toolchains`].
+//! and how it is invoked, belong to [`wf_toolchains::toolchains`].
 
 use std::path::{Path, PathBuf};
 
@@ -12,8 +12,8 @@ use crate::project::{self, ImportSummary};
 
 use crate::cli::BuildArgs;
 use crate::manifest::MANIFEST_FILE;
-use crate::process::StdRunner;
-use crate::toolchains::{self, CompileRequest};
+use wf_toolchains::process::StdRunner;
+use wf_toolchains::toolchains::{self, CompileRequest};
 use crate::{EXIT_DIAGNOSTIC, EXIT_OK};
 
 /// Runs `wf build` and returns the process exit code.

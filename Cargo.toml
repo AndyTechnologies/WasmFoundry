@@ -10,6 +10,7 @@ members = [
     "crates/wf-core",
     "crates/wf-wasm",
     "crates/wf-runtime",
+    "crates/wf-toolchains",
     "crates/wf-cli",
 ]
 
@@ -55,3 +56,4 @@ serde_json = "1"
 wf-core = { path = "crates/wf-core", version = "0.1.0" }
 wf-wasm = { path = "crates/wf-wasm", version = "0.1.0" }
 wf-runtime = { path = "crates/wf-runtime", version = "0.1.0" }
+wf-toolchains = { path = "crates/wf-toolchains", version = "0.1.0" }

@@ -116,16 +116,11 @@ impl Toolchain for RustToolchain {
         // can be reported as "expected X and found nothing" rather than "build failed".
         let expected = Self::expected_artifact(&manifest)?;
 
+        // Change directory to the crate's directory to avoid workspace detection.
+        let manifest_dir = manifest.parent().expect("manifest should have a parent");
         let spec = CommandSpec::new("cargo")
-            .args([
-                "build",
-                "--release",
-                "--target",
-                GUEST_TARGET,
-                "--manifest-path",
-                &manifest.display().to_string(),
-            ])
-            .current_dir(request.root());
+            .args(["build", "--release", "--target", GUEST_TARGET])
+            .current_dir(manifest_dir);
 
         let output = request.runner().run(&spec).map_err(|error| {
             Diagnostic::new(
@@ -319,13 +314,10 @@ mod tests {
         assert_eq!(spec.arguments()[1], "--release");
         assert_eq!(spec.arguments()[2], "--target");
         assert_eq!(spec.arguments()[3], GUEST_TARGET);
-        assert_eq!(spec.arguments()[4], "--manifest-path");
-        assert!(
-            spec.arguments()[5].ends_with("guest/Cargo.toml"),
-            "{}",
-            spec.arguments()[5]
-        );
-        assert_eq!(spec.cwd(), Some(root.as_path()));
+        // The toolchain never passes `--manifest-path`: it runs cargo inside the guest
+        // crate, so a nested workspace cannot hijack the build.
+        assert_eq!(spec.arguments().len(), 4);
+        assert_eq!(spec.cwd(), Some(root.join("guest").as_path()));
         let _ = std::fs::remove_dir_all(&root);
     }
 

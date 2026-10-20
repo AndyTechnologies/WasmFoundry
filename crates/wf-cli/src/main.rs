@@ -32,10 +32,8 @@ mod cli;
 mod init;
 mod inspect;
 mod manifest;
-mod process;
 mod project;
 mod run;
-mod toolchains;
 
 /// The command succeeded.
 const EXIT_OK: i32 = 0;

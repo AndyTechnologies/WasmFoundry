@@ -282,16 +282,17 @@ dyn Toolchain
 publish(root, name, bytes, detail)         shared: read, validate, copy
 ```
 
-**The trait has two implementations, and that is why it exists.** `precompiled` shipped in
-PHASE 5 as a direct code path; `rust` is the second consumer. A trait drawn around a single
-implementation would have been a boundary nothing crossed.
+**The trait has four implementations, and that is why it exists.** `precompiled` shipped in
+PHASE 5 as a direct code path; `rust` is the second consumer, and C++ / AssemblyScript
+(PHASE 10–11) confirmed the shape: the build core never branches on a language, a new
+guest language is one file plus one `lookup` arm.
 
-**Two toolchains, one crate — deliberately.** `AGENTS.md`'s rule says a second
-implementation *justifies* a crate boundary; it does not require one. The plan creates
-`wf-toolchains` at PHASE 10 (C++), and moving two short adapters into a new crate before
-then is churn without a consumer. **The extraction trigger is PHASE 10**: when a toolchain
-needs its own dependency surface (sysroots, `clang`, `zig`), the module moves and `wf-cli`
-keeps only parsing and output.
+**The toolchains live in their own crate since PHASE 10.** The plan (`plan.md` #61) creates
+`wf-toolchains` when the surface grows its dependency reach (clang, sysroots, `asc`), and
+that trigger fired: the adapters moved out of `wf-cli`, which now keeps only parsing, the
+build plan and output. The dependency direction is `wf-toolchains → wf-core`,
+`wf-toolchains → wf-wasm` (validation before publishing, class A of the threat model),
+`wf-cli → wf-toolchains`.
 
 **`toolchains::lookup` is a security boundary, not a dispatch table.** It is the only place
 a manifest's `toolchain` string becomes an implementation, and it never maps to a path or a

@@ -30,6 +30,10 @@ wf-runtime = { workspace = true }
 # The entry point is a domain value, not a bare string the runtime happens to look for.
 wf-core = { workspace = true }
 
+# Guest toolchains (PHASE 10+). The CLI builds a manifest-level plan and hands each
+# module to its adapter; no compiler command line can leak back into the CLI.
+wf-toolchains = { workspace = true }
+
 # Serialisation for `--format json`. It lives here and not in the analysis crate:
 # the JSON document is an interface of this binary, not a property of the domain.
 serde = { version = "1", features = ["derive"] }
@@ -43,6 +47,7 @@ toml = "1"
 # `src/init.rs` where it can be read in review, rather than checked in as an opaque
 # binary fixture.
 wat = "1.238"
+
 
 [dev-dependencies]
 # Test-only: fixtures are assembled from readable WAT source, and end-to-end tests parse

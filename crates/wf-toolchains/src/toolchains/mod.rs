@@ -5,6 +5,7 @@
 //! the boundary is a request and a result — no cargo flags, no file layout, no compiler
 //! concepts. The rest of the system never builds a compiler command itself.
 
+pub mod cpp_toolchain;
 pub mod precompiled;
 pub mod rust_toolchain;
 
@@ -16,6 +17,7 @@ use wf_core::{
 
 use crate::process::ProcessRunner;
 
+pub use cpp_toolchain::CppToolchain;
 pub use precompiled::PrecompiledToolchain;
 pub use rust_toolchain::RustToolchain;
 
@@ -155,6 +157,7 @@ pub fn lookup(id: &ToolchainId) -> Option<&'static dyn Toolchain> {
     match id.as_str() {
         "precompiled" => Some(&PrecompiledToolchain),
         "rust" => Some(&RustToolchain),
+        "cpp" => Some(&CppToolchain),
         _ => None,
     }
 }
@@ -169,7 +172,7 @@ pub fn unknown_toolchain(module: &ModuleSpec, id: &ToolchainId) -> Diagnostic {
             module.name, id
         ),
     )
-    .with_help("supported toolchains: precompiled, rust")
+    .with_help("supported toolchains: precompiled, rust, cpp")
 }
 
 /// Publishes validated bytes as a project artifact.
@@ -242,13 +245,13 @@ mod tests {
     /// entry it accepts must actually be implemented, and nothing else may be.
     #[test]
     fn only_the_implemented_toolchains_resolve() {
-        for name in ["precompiled", "rust"] {
+        for name in ["precompiled", "rust", "cpp"] {
             let id = ToolchainId::new(name).expect("valid name");
             let toolchain = lookup(&id).expect("implemented");
             assert_eq!(toolchain.id(), name, "id must match the name it answers to");
         }
 
-        for name in ["cpp", "assemblyscript", "cargo", "/bin/sh", "rust"] {
+        for name in ["cargo", "/bin/sh", "rust"] {
             let id = ToolchainId::new(name).expect("valid name");
             if name == "rust" {
                 assert!(lookup(&id).is_some());

@@ -196,10 +196,14 @@ fn build_reports_a_manifest_that_declares_an_absent_source() {
 /// exactly how a fixture for "does not exist" rots.
 #[test]
 fn build_rejects_a_toolchain_this_version_does_not_have() {
-    let project = Project::new("cpp");
-    write_source(&project, "cpp.wasm", "(module (func (export \"_start\")))");
+    let project = Project::new("fortran");
+    write_source(
+        &project,
+        "fortran.wasm",
+        "(module (func (export \"_start\")))",
+    );
     let manifest_text =
-        manifest("cpp").replace("toolchain = \"precompiled\"", "toolchain = \"cpp\"");
+        manifest("fortran").replace("toolchain = \"precompiled\"", "toolchain = \"fortran\"");
     std::fs::write(project.root.join("wasmfoundry.toml"), manifest_text).expect("writable");
 
     let built = project.wf(&["build"]);
@@ -209,11 +213,11 @@ fn build_rejects_a_toolchain_this_version_does_not_have() {
         message.contains("WF004"),
         "missing toolchain is WF004: {message}"
     );
-    assert!(message.contains("`cpp`"), "{message}");
+    assert!(message.contains("`fortran`"), "{message}");
     // It must not be confused with a missing file: the two are fixed by
     // different actions.
     assert!(!message.contains("cannot be read"), "{message}");
-    assert!(!project.root.join("target/cpp.wasm").exists());
+    assert!(!project.root.join("target/fortran.wasm").exists());
 }
 
 #[test]
