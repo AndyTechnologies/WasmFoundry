@@ -53,6 +53,9 @@ struct RuntimeFile {
     wall_clock_seconds: Option<f64>,
     #[serde(default)]
     memory_pages: Option<u64>,
+    /// Whether the host's environment variables are visible to the guest.
+    #[serde(default)]
+    environment: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -164,6 +167,7 @@ pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
         mounts,
         runtime: wf_core::RuntimeSettings {
             wasi: file.runtime.wasi.unwrap_or(false),
+            environment: file.runtime.environment.unwrap_or(false),
             limits,
         },
         package: Package {
@@ -408,6 +412,23 @@ toolchain = "precompiled"
             Some(std::time::Duration::from_secs_f64(2.5))
         );
         assert_eq!(policy.limits().memory_pages(), Some(128));
+    }
+
+    /// The host environment is a capability like any other: severed by default, granted
+    /// only by an explicit `environment = true` in the runtime section.
+    #[test]
+    fn the_runtime_environment_grants_visibility_when_asked_for() {
+        let granted =
+            parse(&SAMPLE.replace("[package]", "[runtime]\nenvironment = true\n\n[package]"))
+                .expect("parses");
+        assert!(granted.policy().environment_visible());
+
+        let untouched = parse(&SAMPLE.replace("[package]", "[runtime]\nwasi = true\n\n[package]"))
+            .expect("parses");
+        assert!(
+            !untouched.policy().environment_visible(),
+            "opting into WASI is not opting into secrets"
+        );
     }
 
     /// A mount is read into the manifest, with its access.

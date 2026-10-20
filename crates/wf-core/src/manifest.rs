@@ -28,6 +28,8 @@ pub struct Manifest {
 pub struct RuntimeSettings {
     /// Whether the guest may use WASI.
     pub wasi: bool,
+    /// Whether the host's environment variables are visible to the guest.
+    pub environment: bool,
     /// The bounds the guest runs under.
     pub limits: crate::ExecutionLimits,
 }
@@ -88,10 +90,12 @@ impl Manifest {
     /// Pure construction from the manifest: the policy is the domain's description of
     /// one invocation, and the manifest is where a project states it.
     pub fn policy(&self) -> crate::RuntimePolicy {
-        if !self.runtime.wasi && self.mounts.is_empty() {
-            return crate::RuntimePolicy::denied();
-        }
-        crate::RuntimePolicy::wasi(self.mounts.clone(), self.runtime.limits)
+        crate::RuntimePolicy::granted(
+            self.runtime.wasi,
+            self.mounts.clone(),
+            self.runtime.environment,
+            self.runtime.limits,
+        )
     }
 
     /// Checks that this manifest means what it appears to mean.

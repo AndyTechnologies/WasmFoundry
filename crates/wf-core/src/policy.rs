@@ -136,6 +136,22 @@ impl RuntimePolicy {
         }
     }
 
+    /// The policy a caller described in full: every capability is granted or denied
+    /// explicitly, nothing is assumed.
+    pub fn granted(
+        wasi: bool,
+        mounts: Vec<Mount>,
+        environment: bool,
+        limits: ExecutionLimits,
+    ) -> Self {
+        RuntimePolicy {
+            wasi,
+            mounts,
+            environment,
+            limits,
+        }
+    }
+
     /// Whether the guest may use WASI at all.
     pub fn wasi_enabled(&self) -> bool {
         self.wasi
