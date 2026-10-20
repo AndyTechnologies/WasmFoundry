@@ -74,7 +74,11 @@ pub struct InitArgs {
 
 /// Arguments of `wf build`.
 #[derive(Debug, clap::Args)]
-pub struct BuildArgs;
+pub struct BuildArgs {
+    /// Watch for changes and rebuild automatically.
+    #[arg(long)]
+    pub watch: bool,
+}
 
 /// Rendering of a command result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

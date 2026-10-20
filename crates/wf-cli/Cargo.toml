@@ -48,6 +48,8 @@ toml = "1"
 # binary fixture.
 wat = "1.238"
 
+# File system watcher for `wf build --watch` (PHASE 13).
+notify = "5"
 
 [dev-dependencies]
 # Test-only: fixtures are assembled from readable WAT source, and end-to-end tests parse

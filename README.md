@@ -8,10 +8,11 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 9.** Two guest toolchains, multi-module composition, the Host ABI, and
-> WASI under an explicit policy: mounts, capabilities granted rather than assumed, and
-> bounds that stop a guest that crosses them. Everything else is still ahead — see
-> [Status](#status).
+> **Status: PHASE 10–11.** Three guest toolchains (Rust, C++, AssemblyScript) behind one
+> `Toolchain` adapter, now living in their own crate; multi-module composition, the Host
+> ABI, and WASI under an explicit policy: mounts, capabilities granted rather than
+> assumed, and bounds that stop a guest that crosses them. Everything else is still
+> ahead — see [Status](#status).
 
 ---
 
@@ -43,19 +44,20 @@ WasmFoundry takes the opposite position on each:
 
 ## Architecture
 
-Four crates, with a strict dependency direction:
+Five crates, with a strict dependency direction:
 
 ```text
-wf-core        pure domain: types, rules, graph traversal, fingerprints, diagnostics
+wf-core            pure domain: types, rules, graph traversal, fingerprints, diagnostics
    ^
-wf-wasm        WebAssembly analysis, delegated to wasmparser
+wf-wasm            WebAssembly analysis, delegated to wasmparser
    ^
-wf-runtime     execution, delegated to Wasmtime
+wf-toolchains      guest toolchains: compile a declared source to a published module
+wf-runtime         execution, delegated to Wasmtime
    ^
-wf-cli         the `wf` binary: argument parsing, output, exit codes
+wf-cli             the `wf` binary: argument parsing, output, exit codes
 ```
 
-Each crate may only depend on the one below it. The full rules, including the banned
+Each crate may only depend on the ones below it. The full rules, including the banned
 dependencies per crate, are in [`docs/architecture.md`](docs/architecture.md).
 
 Two rules are worth stating here because they shape everything else:
@@ -75,6 +77,7 @@ Two rules are worth stating here because they shape everything else:
 | `wf-core` | Domain vocabulary and pure rules. Zero dependencies. | none |
 | `wf-wasm` | Analysis of a WebAssembly binary: kind, imports, exports, validation. | `wasmparser` |
 | `wf-runtime` | Execution of an analysed module under Wasmtime. | `wasmtime` |
+| `wf-toolchains` | Guest toolchains: Rust, C++, AssemblyScript, precompiled wasm. | `toml` (guest crate manifests) |
 | `wf-cli` | The `wf` command line interface. | `clap` |
 
 ---
@@ -111,6 +114,10 @@ wf build
 wf run
 wf run target/hello.wasm
 wf run target/hello.wasm --entry main
+
+# Keep the built artifact in sync with the sources: one build per quiet moment and
+# never a rebuild triggered by an output write.
+wf build --watch
 
 # Analyse any binary without executing it, for a human or as JSON for other tools.
 wf inspect target/hello.wasm
@@ -281,9 +288,9 @@ and must pass its gate before the next begins.
 | 5 | `wf init`, `wf build` for precompiled wasm | ✅ done |
 | 6 | Rust guest toolchain | ✅ done |
 | 7 | Dependency graph and module matching | ✅ done |
-| 8–9 | Host ABI v1, WASI, mounts, capability policy | pending |
-| 10–11 | C++ and AssemblyScript toolchains | pending |
-| 12–13 | Cache, watch | pending |
+| 8–9 | Host ABI v1, WASI, mounts, capability policy | ✅ done |
+| 10–11 | C++ and AssemblyScript toolchains, `wf-toolchains` crate | ✅ done |
+| 12–13 | Cache, watch | watch ✅ (landed ahead of cache, see `docs/gaps/GAP-0001.md`); cache pending |
 | 14–16 | Bundle format v1 and prebuilt launchers | pending |
 | 17 | Component model support | pending |
 | 19–21 | Supply-chain tooling, CI, `v0.1.0` | pending |
