@@ -5,6 +5,7 @@
 //! the boundary is a request and a result — no cargo flags, no file layout, no compiler
 //! concepts. The rest of the system never builds a compiler command itself.
 
+pub mod assemblyscript_toolchain;
 pub mod cpp_toolchain;
 pub mod precompiled;
 pub mod rust_toolchain;
@@ -17,6 +18,7 @@ use wf_core::{
 
 use crate::process::ProcessRunner;
 
+pub use assemblyscript_toolchain::AssemblyScriptToolchain;
 pub use cpp_toolchain::CppToolchain;
 pub use precompiled::PrecompiledToolchain;
 pub use rust_toolchain::RustToolchain;
@@ -172,7 +174,7 @@ pub fn unknown_toolchain(module: &ModuleSpec, id: &ToolchainId) -> Diagnostic {
             module.name, id
         ),
     )
-    .with_help("supported toolchains: precompiled, rust, cpp")
+    .with_help("supported toolchains: precompiled, rust, cpp, assemblyscript")
 }
 
 /// Publishes validated bytes as a project artifact.

@@ -162,17 +162,20 @@ fn a_source_without_a_crate_manifest_is_refused_before_cargo_runs() {
 #[test]
 fn a_toolchain_this_version_does_not_implement_is_refused_by_name() {
     let project = Project::new("unknown");
-    let manifest = MANIFEST.replace("toolchain = \"rust\"", "toolchain = \"assemblyscript\"");
+    let manifest = MANIFEST.replace("toolchain = \"rust\"", "toolchain = \"fortran\"");
     std::fs::write(project.root.join("wasmfoundry.toml"), manifest).expect("writable");
 
     let built = project.wf(&["build"]);
     assert_eq!(built.status.code(), Some(1), "{}", stderr(&built));
     let message = stderr(&built);
     assert!(message.contains("WF004"), "{message}");
-    assert!(message.contains("assemblyscript"), "{message}");
+    assert!(message.contains("`fortran`"), "{message}");
     // The list of what does exist is what makes the message actionable.
     assert!(
-        message.contains("precompiled") && message.contains("rust"),
+        message.contains("precompiled")
+            && message.contains("rust")
+            && message.contains("cpp")
+            && message.contains("assemblyscript"),
         "{message}"
     );
 }
