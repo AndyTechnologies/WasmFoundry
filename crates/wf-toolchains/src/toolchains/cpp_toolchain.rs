@@ -92,9 +92,7 @@ impl Toolchain for CppToolchain {
 
         let spec = CommandSpec::new("clang++")
             .args(vec![
-                // Target WebAssembly
-                "--target=wasm32".to_string(),
-                // Use the unknown-unknown triple (no OS, no libc)
+                // Target WebAssembly: the unknown-unknown triple (no OS, no libc)
                 "--target=wasm32-unknown-unknown".to_string(),
                 // Do not link with standard libraries
                 "-nostdlib".to_string(),
@@ -318,7 +316,12 @@ mod tests {
         // Check the program and a few key flags.
         assert_eq!(spec.program(), "clang++");
         let args = spec.arguments();
-        assert!(args.contains(&"--target=wasm32".to_string()));
+        // Exactly one target flag: two would be a contradiction that happens to
+        // resolve silently because the last flag wins.
+        assert_eq!(
+            args.iter().filter(|a| a.starts_with("--target=")).count(),
+            1
+        );
         assert!(args.contains(&"--target=wasm32-unknown-unknown".to_string()));
         assert!(args.contains(&"-nostdlib".to_string()));
         assert!(args.contains(&"-Wl,--no-entry".to_string()));
