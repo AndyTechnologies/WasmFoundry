@@ -19,6 +19,10 @@ wf-wasm = { workspace = true }
 # The Rust adapter reads the guest crate's `Cargo.toml` to predict the artifact name.
 toml = "0.9"
 
+# Content fingerprinting for the build cache (PHASE 12): BLAKE3 per `plan.md` #69,
+# decision in `docs/adr/0001-cache-fingerprint-blake3.md`.
+blake3 = { workspace = true }
+
 [dev-dependencies]
 # Test-only: fixtures are assembled from readable WAT source.
 wat = "1.238"

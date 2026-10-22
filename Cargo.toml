@@ -38,6 +38,10 @@ wasmtime = { version = "49.0.1", default-features = false, features = [
 # Binary analysis. WebAssemblyFoundry never ships a hand-written parser.
 wasmparser = "0.260.0"
 
+# Content fingerprinting for the build cache (PHASE 12, `plan.md` #68–#69). BLAKE3
+# over a project's inputs; the hash happens here, never in `wf-core` (zero deps).
+blake3 = "1"
+
 # CLI argument parsing for the `wf` binary.
 clap = { version = "4.5", default-features = false, features = [
     "std",

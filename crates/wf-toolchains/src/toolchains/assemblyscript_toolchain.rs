@@ -39,6 +39,14 @@ impl Toolchain for AssemblyScriptToolchain {
         "assemblyscript"
     }
 
+    fn cache_key(&self) -> String {
+        "asc -O3 --validate".to_owned()
+    }
+
+    fn source_paths(&self, request: &CompileRequest<'_>) -> Vec<PathBuf> {
+        vec![Self::source_path(request)]
+    }
+
     fn detect(&self, request: &CompileRequest<'_>) -> Detection {
         let source = Self::source_path(request);
         // Accept any existing file; the compilation step will fail if it's not a

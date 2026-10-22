@@ -17,6 +17,21 @@ use super::{CompileRequest, CompileResult, Detection, GUEST_TARGET, Toolchain, p
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RustToolchain;
 
+/// Walks a directory tree collecting every file's path, depth-first in read order; the
+/// caller sorts for determinism.
+fn collect_files(read: std::fs::ReadDir, out: &mut Vec<PathBuf>) {
+    for entry in read.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if let Ok(nested) = std::fs::read_dir(&path) {
+                collect_files(nested, out);
+            }
+        } else {
+            out.push(path);
+        }
+    }
+}
+
 impl RustToolchain {
     /// The crate manifest this toolchain reads.
     fn crate_manifest(request: &CompileRequest<'_>) -> PathBuf {
@@ -84,6 +99,29 @@ impl RustToolchain {
 impl Toolchain for RustToolchain {
     fn id(&self) -> &'static str {
         "rust"
+    }
+
+    fn cache_key(&self) -> String {
+        format!("cargo build --release --target {GUEST_TARGET} (cd crate)")
+    }
+
+    fn source_paths(&self, request: &CompileRequest<'_>) -> Vec<PathBuf> {
+        let crate_dir = request.root().join(request.module().source.as_str());
+        let mut paths = vec![crate_dir.join("Cargo.toml")];
+        // The lockfile pins dependency versions: a change there must rebuild.
+        let lock = crate_dir.join("Cargo.lock");
+        if lock.is_file() {
+            paths.push(lock);
+        }
+        let build_rs = crate_dir.join("build.rs");
+        if build_rs.is_file() {
+            paths.push(build_rs);
+        }
+        if let Ok(read) = std::fs::read_dir(crate_dir.join("src")) {
+            collect_files(read, &mut paths);
+            paths.sort();
+        }
+        paths
     }
 
     fn detect(&self, request: &CompileRequest<'_>) -> Detection {

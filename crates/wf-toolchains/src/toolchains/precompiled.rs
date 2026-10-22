@@ -26,6 +26,10 @@ impl Toolchain for PrecompiledToolchain {
         "precompiled"
     }
 
+    fn source_paths(&self, request: &CompileRequest<'_>) -> Vec<std::path::PathBuf> {
+        vec![Self::source_path(request)]
+    }
+
     fn detect(&self, request: &CompileRequest<'_>) -> Detection {
         let source = Self::source_path(request);
         if !source.exists() {

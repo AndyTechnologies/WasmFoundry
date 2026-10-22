@@ -147,6 +147,18 @@ pub trait Toolchain {
 
     /// Builds the module, publishing it into the project's `target/` directory.
     fn compile(&self, request: &CompileRequest<'_>) -> Result<CompileResult, Diagnostic>;
+
+    /// The invocation contract this adapter owns, as a cache fingerprint segment
+    /// (`plan.md` #68: toolchain id, compiler options, guest target). An adapter that
+    /// changes what it runs must change this string; a fingerprint that misses a flag
+    /// would reuse a stale artifact.
+    fn cache_key(&self) -> String {
+        self.id().to_owned()
+    }
+
+    /// The files whose bytes decide whether this toolchain must run again. The cache
+    /// hashes their contents; mtimes are not consulted.
+    fn source_paths(&self, request: &CompileRequest<'_>) -> Vec<std::path::PathBuf>;
 }
 
 /// The toolchains this version implements.
