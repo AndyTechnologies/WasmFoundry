@@ -157,9 +157,10 @@ pub trait Toolchain {
 /// `toolchain` field incapable of naming an arbitrary program (threat model, class B).
 pub fn lookup(id: &ToolchainId) -> Option<&'static dyn Toolchain> {
     match id.as_str() {
+        "assemblyscript" => Some(&AssemblyScriptToolchain),
+        "cpp" => Some(&CppToolchain),
         "precompiled" => Some(&PrecompiledToolchain),
         "rust" => Some(&RustToolchain),
-        "cpp" => Some(&CppToolchain),
         _ => None,
     }
 }
@@ -247,7 +248,7 @@ mod tests {
     /// entry it accepts must actually be implemented, and nothing else may be.
     #[test]
     fn only_the_implemented_toolchains_resolve() {
-        for name in ["precompiled", "rust", "cpp"] {
+        for name in ["assemblyscript", "cpp", "precompiled", "rust"] {
             let id = ToolchainId::new(name).expect("valid name");
             let toolchain = lookup(&id).expect("implemented");
             assert_eq!(toolchain.id(), name, "id must match the name it answers to");
