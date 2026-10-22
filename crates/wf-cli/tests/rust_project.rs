@@ -179,3 +179,83 @@ fn a_toolchain_this_version_does_not_implement_is_refused_by_name() {
         "{message}"
     );
 }
+
+/// Building twice with unchanged source should skip recompilation via cache.
+#[test]
+fn a_second_build_is_cached() {
+    let project = Project::new("cached-build");
+
+    let first = project.wf(&["build"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+
+    let second = project.wf(&["build"]);
+    assert!(second.status.success(), "{}", stderr(&second));
+    let output = stdout(&second);
+    assert!(
+        output.contains("wf: cached hello (unchanged)"),
+        "second build should cache: {output}"
+    );
+    // The cached build should not run cargo again.
+    assert!(
+        !output.contains("cargo build"),
+        "cached build should not invoke cargo: {output}"
+    );
+}
+
+/// Editing a source file forces a rebuild; rebuilding after edits then caches again.
+#[test]
+fn editing_source_rebuilds_and_then_caches() {
+    let project = Project::new("edit-rebuild");
+
+    let first = project.wf(&["build"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+
+    // Append a harmless line to the guest's lib.rs.
+    let lib_rs = project.root.join("guest/src/lib.rs");
+    let original = std::fs::read_to_string(&lib_rs).expect("lib.rs exists");
+    std::fs::write(&lib_rs, format!("{}\n// edited\n", original)).expect("writable");
+
+    let rebuild = project.wf(&["build"]);
+    assert!(rebuild.status.success(), "{}", stderr(&rebuild));
+    assert!(
+        stdout(&rebuild).contains("cargo build"),
+        "edit should trigger cargo: {}",
+        stdout(&rebuild)
+    );
+
+    // Build again — should cache.
+    let cached = project.wf(&["build"]);
+    assert!(cached.status.success(), "{}", stderr(&cached));
+    assert!(
+        stdout(&cached).contains("wf: cached hello (unchanged)"),
+        "third build should cache: {}",
+        stdout(&cached)
+    );
+}
+
+/// Touching mtime without changing content should not rebuild.
+#[test]
+fn mtime_only_change_does_not_rebuild() {
+    let project = Project::new("mtime-only");
+
+    let first = project.wf(&["build"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+
+    // Bump the mtime of the guest's lib.rs without changing content.
+    let lib_rs = project.root.join("guest/src/lib.rs");
+    let file = std::fs::File::open(&lib_rs).expect("open lib.rs");
+    let new_times = std::fs::FileTimes::new()
+        .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(3600));
+    file.set_times(new_times).expect("set times");
+
+    // Small delay to ensure the mtime difference is observable.
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let rebuilt = project.wf(&["build"]);
+    assert!(rebuilt.status.success(), "{}", stderr(&rebuilt));
+    assert!(
+        stdout(&rebuilt).contains("wf: cached hello (unchanged)"),
+        "mtime-only change should not rebuild: {}",
+        stdout(&rebuilt)
+    );
+}

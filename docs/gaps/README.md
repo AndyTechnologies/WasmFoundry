@@ -54,6 +54,7 @@ in discovery order and are never reused or renumbered.
 
 ## Open gaps
 
-None yet. GAP-0001 and the plan deviations found while establishing the repository were
-recorded during PHASE 0–2 and are tracked in the project's local orchestration notes;
-they become permanent files here when the first post-skeleton gap is opened.
+| Number | Title | Classification | Status |
+| --- | --- | --- | --- |
+| [GAP-0001](GAP-0001.md) | `wf build --watch` lands before the cache | platform gap | Resolved |
+| [GAP-0002](GAP-0002.md) | Compiler binary version not in build cache fingerprint (v1) | architecture gap | Deferred |

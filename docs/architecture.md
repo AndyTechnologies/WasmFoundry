@@ -262,9 +262,7 @@ live in `wf-cli`, and that is a deliberate, reversible choice rather than an end
   what a TOML table looks like. The CLI reads the file and hands the domain plain data.
 - **Validation stays in the domain** because whether a manifest *means something usable*
   is a rule, and rules belong where every command can share them.
-- **Orchestration sits in the CLI for now** because no other crate consumes it yet. When
-  a cache needs to reason about build steps (PHASE 12), the pipeline moves out and `wf-cli`
-  returns to argument parsing and output only.
+- **Orchestration sits in the CLI for now** because no other crate consumes it yet. With content-fingerprinting (PHASE 12) the cache lives here too: the skip decision is a local optimisation, not a pipeline abstraction. When a remote cache or CI pipeline needs a formal plan, that is the real second consumer and the pipeline moves out. `wf-cli` returns to argument parsing and output only.
 
 ## Toolchains
 
@@ -374,7 +372,7 @@ These are not pending work. Each was rejected for a reason:
 | Code generation for linking | Imports resolve by name in the linker; generating C++ drags a C toolchain into every build |
 | Custom templates | The capability templates provided is replaced by the runtime, the host ABI and the bundle format |
 | A plugin system | The first extensibility is internal: the `Toolchain` trait and runtime extensions. An external plugin protocol waits for a real case |
-| A cache before measuring | PHASE 12 requires at least two real toolchains and cold/warm measurements first |
+| Cache | ✅ implemented as content-fingerprint skip in `wf build` (PHASE 12). Measurements drove the design. |
 | Incremental watch | PHASE 13 starts with a full rebuild; graph invalidation comes after |
 | A build planner | The pipeline runs directly; a formal plan is extracted only when a second need appears |
 | A filesystem abstraction | Real filesystem and `tempfile` in tests. An in-memory or sandboxed filesystem needs a real caller first |

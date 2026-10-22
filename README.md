@@ -119,6 +119,10 @@ wf run target/hello.wasm --entry main
 # never a rebuild triggered by an output write.
 wf build --watch
 
+# `wf build` uses content fingerprints: an unchanged module is not recompiled.
+# See `docs/adr/0001-cache-fingerprint-blake3.md`. After upgrading a guest compiler
+# (clang++/asc/rustc), clear the stale artifacts: `rm -rf target`.
+
 # Analyse any binary without executing it, for a human or as JSON for other tools.
 wf inspect target/hello.wasm
 wf inspect target/hello.wasm --format json
@@ -290,7 +294,7 @@ and must pass its gate before the next begins.
 | 7 | Dependency graph and module matching | ✅ done |
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | ✅ done |
 | 10–11 | C++ and AssemblyScript toolchains, `wf-toolchains` crate | ✅ done |
-| 12–13 | Cache, watch | watch ✅ (landed ahead of cache, see `docs/gaps/GAP-0001.md`); cache pending |
+| 12–13 | Cache, watch | ✅ done |
 | 14–16 | Bundle format v1 and prebuilt launchers | pending |
 | 17 | Component model support | pending |
 | 19–21 | Supply-chain tooling, CI, `v0.1.0` | pending |

@@ -350,3 +350,105 @@ fn build_outside_a_project_reports_no_manifest() {
     assert!(message.contains("wasmfoundry.toml"), "{message}");
     assert!(message.contains("help:"), "{message}");
 }
+
+// ---- S7: dependency cache invalidation ----
+
+/// The consumer: imports `hello` from the module published under `engine`.
+const APP_WAT: &str = r#"
+    (module
+      (import "engine" "hello" (func $hello (result i32)))
+      (func (export "_start") (result i32)
+        call $hello
+        i32.const 2
+        i32.mul))"#;
+
+/// The provider: exports `hello`, importing nothing.
+const ENGINE_WAT: &str = r#"
+    (module
+      (func (export "hello") (result i32) (i32.const 21)))"#;
+
+/// A different engine: same interface, different constant.
+const ENGINE_V2_WAT: &str = r#"
+    (module
+      (func (export "hello") (result i32) (i32.const 22)))"#;
+
+/// When a dependency's fingerprint changes, the dependent module rebuilds even
+/// though its own source is unchanged (S7).
+#[test]
+fn changing_a_dependency_rebuilds_the_importer() {
+    let project = Project::new("dep-change");
+    std::fs::create_dir_all(project.root.join("src")).expect("src dir");
+
+    // Write initial sources.
+    std::fs::write(
+        project.root.join("src/app.wasm"),
+        wat::parse_str(APP_WAT).expect("app assembles"),
+    )
+    .expect("writable");
+    std::fs::write(
+        project.root.join("src/engine.wasm"),
+        wat::parse_str(ENGINE_WAT).expect("engine assembles"),
+    )
+    .expect("writable");
+
+    let manifest_text = r#"schema = 1
+
+[package]
+name = "dep-change"
+version = "0.1.0"
+
+[project]
+source_dir = "src"
+entry = "_start"
+
+[[module]]
+name = "app"
+source = "src/app.wasm"
+toolchain = "precompiled"
+
+[[module]]
+name = "engine"
+source = "src/engine.wasm"
+toolchain = "precompiled"
+"#;
+    std::fs::write(project.root.join("wasmfoundry.toml"), manifest_text).expect("writable");
+
+    // First build: both modules compile.
+    let first = project.wf(&["build"]);
+    assert!(first.status.success(), "{}", stderr(&first));
+
+    // Second build: both cached.
+    let second = project.wf(&["build"]);
+    assert!(second.status.success(), "{}", stderr(&second));
+    let cached_output = stdout(&second);
+    assert!(
+        cached_output.contains("wf: cached app (unchanged)"),
+        "app should be cached: {cached_output}"
+    );
+    assert!(
+        cached_output.contains("wf: cached engine (unchanged)"),
+        "engine should be cached: {cached_output}"
+    );
+
+    // Replace engine's source with a different module (same interface).
+    std::fs::write(
+        project.root.join("src/engine.wasm"),
+        wat::parse_str(ENGINE_V2_WAT).expect("engine v2 assembles"),
+    )
+    .expect("writable");
+
+    // Third build: engine rebuilds (source changed), app also rebuilds (dependency changed).
+    let third = project.wf(&["build"]);
+    assert!(third.status.success(), "{}", stderr(&third));
+    let third_output = stdout(&third);
+    // Engine rebuilds because its source changed.
+    assert!(
+        !third_output.contains("wf: cached engine (unchanged)"),
+        "engine should rebuild after source change: {third_output}"
+    );
+    // App also rebuilds because engine (its dependency) changed.
+    assert!(
+        !third_output.contains("wf: cached app (unchanged)"),
+        "app should rebuild when engine changes: {third_output}"
+    );
+}
