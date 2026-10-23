@@ -28,6 +28,7 @@
 #![forbid(unsafe_code)]
 
 mod build;
+mod bundle;
 mod cli;
 mod init;
 mod inspect;

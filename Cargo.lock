@@ -1975,6 +1975,7 @@ dependencies = [
  "serde_json",
  "toml 1.1.8+spec-1.1.0",
  "wat",
+ "wf-bundle",
  "wf-core",
  "wf-runtime",
  "wf-toolchains",

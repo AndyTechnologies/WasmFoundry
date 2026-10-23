@@ -34,6 +34,11 @@ wf-core = { workspace = true }
 # module to its adapter; no compiler command line can leak back into the CLI.
 wf-toolchains = { workspace = true }
 
+# Bundle assembly (PHASE 14): [launcher][payload][metadata][footer] into one
+# executable. The CLI's part is only assembly and output; running what was bundled
+# belongs to the launcher inside wf-bundle.
+wf-bundle = { workspace = true }
+
 # Serialisation for `--format json`. It lives here and not in the analysis crate:
 # the JSON document is an interface of this binary, not a property of the domain.
 serde = { version = "1", features = ["derive"] }

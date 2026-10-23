@@ -38,6 +38,8 @@ pub enum Command {
     Init(InitArgs),
     /// Build the modules declared in the project manifest.
     Build(BuildArgs),
+    /// Wrap the built project into a native launcher bundle (POC).
+    Bundle(BundleArgs),
 }
 
 /// Arguments of `wf inspect`.
@@ -80,6 +82,15 @@ pub struct BuildArgs {
     pub watch: bool,
 }
 
+/// Arguments of `wf bundle`.
+#[derive(Debug, clap::Args)]
+pub struct BundleArgs {
+    /// Path to a prebuilt launcher binary. PHASE 14: `wf` never builds a launcher
+    /// itself; the bundle receives one that already exists.
+    #[arg(long, value_name = "LAUNCHER")]
+    pub launcher: std::path::PathBuf,
+}
+
 /// Rendering of a command result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutputFormat {
@@ -105,5 +116,6 @@ pub fn run() -> i32 {
         Some(Command::Run(args)) => crate::run::run(&args),
         Some(Command::Init(args)) => crate::init::run(&args),
         Some(Command::Build(args)) => crate::build::run(&args),
+        Some(Command::Bundle(args)) => crate::bundle::run(&args),
     }
 }

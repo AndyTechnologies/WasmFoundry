@@ -1,18 +1,18 @@
 # Architecture
 
-WasmFoundry is four crates in a strict dependency direction. The boundaries are not
+WasmFoundry is six crates in a strict dependency direction. The boundaries are not
 decorative: each one exists so that a specific kind of change stays inside one crate.
 
 ## Crate map
 
 ```text
-                 wf-cli
+   wf-cli
+     |
+ wf-runtime   wf-toolchains   wf-bundle
+     |             |               |
+     +---- wf-wasm -+---------------+
                    |
-                wf-runtime
-                   |
-                 wf-wasm
-                   |
-                 wf-core
+                wf-core
 ```
 
 | Crate | Owns | Never owns |
@@ -20,11 +20,14 @@ decorative: each one exists so that a specific kind of change stays inside one c
 | `wf-core` | Domain vocabulary, pure rules, graph traversal, fingerprints, diagnostics | Bytes, files, processes, engines, CLI concerns |
 | `wf-wasm` | Everything asked *about* a WebAssembly binary | Execution, build orchestration |
 | `wf-runtime` | Engine, module, store, linker, instance, entry invocation | Parsing, compiling, CLI concerns |
+| `wf-toolchains` | Guest toolchains (Rust, C++, AssemblyScript, precompiled) and the build cache: one adapter per language, hashing for freshness | Manifest parsing, terminal output, execution |
+| `wf-bundle` | Bundle format POC (`[launcher][payload][metadata][footer]`) and the dev launcher | Compiling launchers, manifest parsing, build logic |
 | `wf-cli` | Argument parsing, terminal output, exit codes | Domain logic of any kind |
 
-Two crates will be added later, when a real second use case justifies the boundary:
-`wf-toolchains` (PHASE 10, when a second real toolchain exists) and `wf-bundle` (PHASE
-14). Until then they do not exist, and no placeholder crate is reserved for them.
+`wf-toolchains` arrived in PHASE 10 (a second real toolchain), `wf-bundle` in PHASE
+14 (a real consumer for the packaging format). A new crate boundary is justified by
+exactly one of: a second consumer, a second implementation, or a responsibility that
+must evolve independently — for anything else, no placeholder crate is reserved.
 
 ## Dependency rules
 
@@ -33,11 +36,9 @@ Two crates will be added later, when a real second use case justifies the bounda
 | `wf-core` | `std` only | `wasmtime`, `wasmparser`, `clap`, `serde`, `tokio`, filesystem, process, network, `unsafe` |
 | `wf-wasm` | `wasmparser`, `wf-core` | Exposing `wasmparser` types in the public API, execution, CLI logic |
 | `wf-runtime` | `wasmtime`, `wf-core`, `wf-wasm` | Source compilation, compiler invocation, CLI logic, filesystem build orchestration |
-| `wf-cli` | `clap`, `wf-core`, `wf-wasm`, `wf-runtime`, `wf-wasm` (via analysis) | WebAssembly parsing, engine internals, business rules |
-
-A new crate boundary is justified by exactly one of: a second consumer, a second
-implementation, or a responsibility that must evolve independently. None of those is
-true today for anything beyond the four crates above.
+| `wf-toolchains` | `wf-core`, `wf-wasm`, `toml`, `blake3` | Manifest parsing, CLI output, execution |
+| `wf-bundle` | `wf-core`, `wf-runtime`, `sha2` | Building launchers on their own, manifest parsing, build orchestration |
+| `wf-cli` | `clap`, `wf-core`, `wf-wasm`, `wf-runtime`, `wf-toolchains`, `wf-bundle` | WebAssembly parsing, engine internals, business rules |
 
 ## The pure domain
 
@@ -76,7 +77,11 @@ freezes names and invariants that real call sites would have chosen differently.
 | `Dependency` | Directed edge between modules, carrying the reason | PHASE 7 |
 | `DependencyGraph` | Pure graph plus roots, leaves, order, cycle detection | PHASE 7 |
 | `RuntimePolicy` | Capabilities one invocation is allowed | PHASE 9 |
-| `Fingerprint` | Content-derived identity of a build input | PHASE 12 |
+| `RuntimeSettings` | What a manifest's `[runtime]` section asked for | PHASE 9 (PHASE 12 added `environment`) |
+
+Content hashing (BLAKE3 for the build cache, PHASE 12) lives in `wf-toolchains`, not
+here: `wf-core` stays zero-dependency, and the hash is an implementation detail of the
+cache, not domain vocabulary.
 
 `Artifact` is deliberately not `Vec<u8>`. The domain records that an artifact exists and
 what it is; a later layer decides where its bytes live. There is no `ArtifactStore`
