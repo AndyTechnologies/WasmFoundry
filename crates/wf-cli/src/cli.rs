@@ -85,10 +85,14 @@ pub struct BuildArgs {
 /// Arguments of `wf bundle`.
 #[derive(Debug, clap::Args)]
 pub struct BundleArgs {
-    /// Path to a prebuilt launcher binary. PHASE 14: `wf` never builds a launcher
-    /// itself; the bundle receives one that already exists.
+    /// Path to a prebuilt launcher binary. Mutually exclusive with `--bundle-target`.
     #[arg(long, value_name = "LAUNCHER")]
-    pub launcher: std::path::PathBuf,
+    pub launcher: Option<std::path::PathBuf>,
+
+    /// Prebuilt launcher resolved from the local registry by target triple.
+    /// Mutually exclusive with `--launcher`.
+    #[arg(long, value_name = "TRIPLE")]
+    pub bundle_target: Option<String>,
 }
 
 /// Rendering of a command result.

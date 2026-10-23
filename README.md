@@ -119,10 +119,13 @@ wf run target/hello.wasm --entry main
 # never a rebuild triggered by an output write.
 wf build --watch
 
-# Wrap the built project into one self-contained native bundle (POC). PHASE 14:
+# Wrap the built project into one self-contained native bundle.
 # `wf` never builds the launcher; you give it one that already exists.
 # cargo build -p wf-bundle --bin wf-launcher
 # wf bundle --launcher target/debug/wf-launcher
+
+# Or resolve a prebuilt launcher from the local registry by target triple.
+# wf bundle --bundle-target x86_64-unknown-linux-gnu
 
 # `wf build` uses content fingerprints: an unchanged module is not recompiled.
 # See `docs/adr/0001-cache-fingerprint-blake3.md`. After upgrading a guest compiler
@@ -300,7 +303,7 @@ and must pass its gate before the next begins.
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | ✅ done |
 | 10–11 | C++ and AssemblyScript toolchains, `wf-toolchains` crate | ✅ done |
 | 12–13 | Cache, watch | ✅ done |
-| 14–16 | Bundle format v1 and prebuilt launchers | POC ✅ (format not frozen yet, see `docs/bundling/bundle-footer-poc.md`); freezing + prebuilt launchers pending |
+| 14–16 | Bundle format v1 and prebuilt launchers | format v1 frozen ✅; prebuilt launcher distribution pending PHASE 21 |
 | 17 | Component model support | pending |
 | 19–21 | Supply-chain tooling, CI, `v0.1.0` | pending |
 

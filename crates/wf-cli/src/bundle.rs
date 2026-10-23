@@ -1,12 +1,17 @@
 //! The `wf bundle` command: wrap a prebuilt native launcher and the project's built
 //! module into one self-contained executable.
 //!
-//! PHASE 14 is the format proof, not the release system: the launcher arrives already
-//! built (`plan.md` #73 — this command must never build a launcher), the project has
-//! one module, and the POC format is not frozen yet (`plan.md` #77).
+//! The launcher arrives prebuilt — this command never compiles one (plan #73). Two
+//! ways to supply the launcher:
+//!
+//! 1. `--launcher <path>` — point at a local binary directly.
+//! 2. `--bundle-target <triple>` — resolve from the local launcher registry. The
+//!    registry is a directory tree; an override env var `WF_LAUNCHER_REGISTRY`
+//!    points to the root, otherwise `~/.wf/launchers` is used.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path; // the bundle must be ready to execute
+use std::path::PathBuf;
 
 use wf_bundle::build;
 
@@ -16,6 +21,30 @@ use crate::{EXIT_DIAGNOSTIC, EXIT_OK, EXIT_USAGE};
 
 /// Runs `wf bundle` and returns the process exit code.
 pub fn run(args: &BundleArgs) -> i32 {
+    // Exactly one of --launcher or --bundle-target must be given.
+    let launcher_path: PathBuf = match (&args.launcher, &args.bundle_target) {
+        (Some(path), None) => path.clone(),
+        (None, Some(triple)) => match resolve_launcher(triple) {
+            Ok(path) => path,
+            Err(code) => return code,
+        },
+        (Some(_), Some(_)) => {
+            eprintln!("wf: `--launcher` and `--bundle-target` are mutually exclusive");
+            eprintln!(
+                "  help: provide exactly one of `--launcher <path>` or `--bundle-target <triple>`"
+            );
+            return EXIT_USAGE;
+        }
+        (None, None) => {
+            eprintln!("wf: a launcher source is required for `wf bundle`");
+            eprintln!(
+                "  help: use `--launcher <path>` to point at a local binary, \
+                 or `--bundle-target <triple>` to resolve from the local registry"
+            );
+            return EXIT_USAGE;
+        }
+    };
+
     // Being outside a project is the same usage problem as build/run: no manifest here.
     if !Path::new(MANIFEST_FILE).exists() {
         eprintln!("wf: no {MANIFEST_FILE} in this directory");
@@ -23,14 +52,12 @@ pub fn run(args: &BundleArgs) -> i32 {
         return EXIT_USAGE;
     }
 
-    // The launcher is given, never built here: bundling must not pull a compiler into
-    // the pipeline (plan #73).
-    let launcher_bytes = match std::fs::read(&args.launcher) {
+    let launcher_bytes = match std::fs::read(&launcher_path) {
         Ok(bytes) => bytes,
         Err(error) => {
             eprintln!(
                 "wf: cannot read launcher {}: {error}",
-                args.launcher.display()
+                launcher_path.display()
             );
             eprintln!(
                 "  help: point `--launcher` at a prebuilt launcher binary \
@@ -58,15 +85,15 @@ pub fn run(args: &BundleArgs) -> i32 {
         }
     };
 
-    // The POC ships one module: a multi-module payload needs a container beyond the
-    // footer format, and freezing that shape before the POC runs is what the roadmap
-    // forbids (plan #77).
+    // v1 format packages one module: a multi-module payload needs a container beyond
+    // the footer format, and freezing that shape before a real container exists is
+    // what the roadmap forbids (plan #77).
     if manifest.modules.len() != 1 {
         eprintln!(
-            "wf: `wf bundle` packages one module in this POC, but the project declares {}",
+            "wf: `wf bundle` packages one module in v1, but the project declares {}",
             manifest.modules.len()
         );
-        eprintln!("  help: keep a single [[module]] for now, or wait for PHASE 15");
+        eprintln!("  help: keep a single [[module]] for now, or wait for a future format version");
         return EXIT_DIAGNOSTIC;
     }
 
@@ -113,6 +140,56 @@ pub fn run(args: &BundleArgs) -> i32 {
     EXIT_OK
 }
 
+/// Resolve a launcher from the local registry by target triple.
+///
+/// Resolution order:
+/// 1. `WF_LAUNCHER_REGISTRY` env var (if set) + `/<triple>/wf-launcher`
+/// 2. `~/.wf/launchers/<triple>/wf-launcher`
+fn resolve_launcher(triple: &str) -> Result<PathBuf, i32> {
+    if !is_safe_path_component(triple) {
+        eprintln!("wf: target triple contains characters unsafe for a path component");
+        eprintln!("  help: use a standard Rust target triple (e.g. x86_64-unknown-linux-gnu)");
+        return Err(EXIT_USAGE);
+    }
+
+    let registry_root = std::env::var("WF_LAUNCHER_REGISTRY")
+        .ok()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME")
+                .ok()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("~"));
+            home.join(".wf").join("launchers")
+        });
+
+    let launcher_path = registry_root.join(triple).join("wf-launcher");
+
+    if !launcher_path.is_file() {
+        eprintln!(
+            "wf: no launcher found for target `{triple}` at {}",
+            launcher_path.display()
+        );
+        eprintln!(
+            "  help: point `--launcher` at a local binary, or build one for this triple: \
+             `cargo build --target {triple} -p wf-bundle --bin wf-launcher`"
+        );
+        return Err(EXIT_USAGE);
+    }
+
+    Ok(launcher_path)
+}
+
+/// Check that a target triple contains only characters safe for a filesystem path component.
+///
+/// Allowed: `[A-Za-z0-9_-.]` — the character set of standard Rust target triples.
+fn is_safe_path_component(triple: &str) -> bool {
+    !triple.is_empty()
+        && triple
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
 /// Formats a byte count for the report line.
 fn format_bytes(count: usize) -> String {
     if count < 1024 {
@@ -130,5 +207,22 @@ mod tests {
     fn byte_counts_render_human_repeatedly() {
         assert_eq!(format_bytes(950), "950 B");
         assert_eq!(format_bytes(2048), "2 KiB");
+    }
+
+    #[test]
+    fn safe_triples_are_accepted() {
+        assert!(is_safe_path_component("x86_64-unknown-linux-gnu"));
+        assert!(is_safe_path_component("aarch64-apple-darwin"));
+        assert!(is_safe_path_component("wasm32-unknown-unknown"));
+        assert!(is_safe_path_component("x86_64-pc-windows-msvc"));
+        assert!(is_safe_path_component("armv7-linux-androideabi"));
+    }
+
+    #[test]
+    fn unsafe_triples_are_rejected() {
+        assert!(!is_safe_path_component("../evil"));
+        assert!(!is_safe_path_component("/etc/passwd"));
+        assert!(!is_safe_path_component("a;b"));
+        assert!(!is_safe_path_component(""));
     }
 }

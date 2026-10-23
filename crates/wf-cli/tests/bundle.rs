@@ -1,4 +1,4 @@
-// End-to-end tests for the bundle POC (plan.md #77), in the order the plan numbers
+// End-to-end tests for the bundle format v1 (plan.md #77), in the order the plan numbers
 // them: build a launcher, copy it, add the payload, add the manifest, add the footer,
 // execute the bundle, verify the payload is found, corrupt a byte, verify the
 // checksum rejects it.
@@ -273,8 +273,159 @@ toolchain = "precompiled"
     let refused = project.wf(&["bundle", "--launcher", &launcher.to_string_lossy()]);
     assert!(!refused.status.success());
     assert!(
-        stderr(&refused).contains("one module in this POC"),
+        stderr(&refused).contains("one module in v1"),
         "{}",
         stderr(&refused)
+    );
+}
+
+/// --bundle-target resolves a launcher from the local registry (WF_LAUNCHER_REGISTRY env
+/// override). The produced bundle executes and returns 7, mirroring the POC test.
+#[test]
+fn bundle_target_resolves_from_registry() {
+    let launcher = launcher_path();
+    if !launcher.is_file() {
+        panic!(
+            "needs the dev launcher; build it with `cargo build -p wf-bundle --bin wf-launcher`"
+        );
+    }
+
+    let project = Project::new("btarget");
+    setup_project(&project, "hello");
+
+    // Set up a fake registry with the dev launcher as the "prebuilt" for our triple.
+    let registry_root = project.root.join("fake-registry");
+    let triple_dir = registry_root.join("x86_64-unknown-linux-gnu");
+    std::fs::create_dir_all(&triple_dir).expect("dir");
+    std::fs::copy(&launcher, triple_dir.join("wf-launcher")).expect("copy");
+
+    let _bundle = project.wf(&["bundle", "--bundle-target", "x86_64-unknown-linux-gnu"]);
+    let output = std::env::var("WF_LAUNCHER_REGISTRY").ok();
+
+    // Re-run with the env override (spawn a fresh process with the env).
+    let bundle = Command::new(env!("CARGO_BIN_EXE_wf"))
+        .args(["bundle", "--bundle-target", "x86_64-unknown-linux-gnu"])
+        .current_dir(&project.root)
+        .env("WF_LAUNCHER_REGISTRY", &registry_root)
+        .output()
+        .expect("wf must be runnable");
+
+    assert!(
+        bundle.status.success(),
+        "{}",
+        String::from_utf8_lossy(&bundle.stderr)
+    );
+    let bundled_path = project.root.join("target/hello.bundle");
+    assert!(
+        bundled_path.is_file(),
+        "{}",
+        String::from_utf8_lossy(&bundle.stdout)
+    );
+
+    // Execute and verify it runs the payload.
+    let ran = project.run(&bundled_path);
+    assert!(ran.status.success(), "{}", stderr(&ran));
+    assert!(
+        stdout(&ran).contains("returned 7"),
+        "the bundle must run its payload: {}",
+        stdout(&ran)
+    );
+
+    // Restore env if it was set before (we didn't modify it, only the child process env).
+    drop(output);
+}
+
+/// When --bundle-target names a triple that does not exist in the registry, the CLI
+/// refuses with a usage error that names the searched path.
+#[test]
+fn bundle_target_missing_triple_names_searched_path() {
+    let project = Project::new("missing-triple");
+    setup_project(&project, "hello");
+
+    let registry_root = project.root.join("empty-registry");
+    std::fs::create_dir_all(&registry_root).expect("dir");
+
+    let result = Command::new(env!("CARGO_BIN_EXE_wf"))
+        .args(["bundle", "--bundle-target", "aarch64-unknown-linux-gnu"])
+        .current_dir(&project.root)
+        .env("WF_LAUNCHER_REGISTRY", &registry_root)
+        .output()
+        .expect("wf must be runnable");
+
+    assert!(!result.status.success());
+    let err = stderr(&result);
+    assert!(
+        err.contains("no launcher found for target"),
+        "must name the missing target: {}",
+        err
+    );
+    assert!(
+        err.contains("aarch64-unknown-linux-gnu"),
+        "error must name the searched path: {}",
+        err
+    );
+}
+
+/// --launcher and --bundle-target given together is refused with a diagnostic.
+#[test]
+fn launcher_and_bundle_target_mutually_exclusive() {
+    let project = Project::new("mutual");
+    setup_project(&project, "hello");
+
+    let launcher = launcher_path();
+
+    let refused = Command::new(env!("CARGO_BIN_EXE_wf"))
+        .args([
+            "bundle",
+            "--launcher",
+            &launcher.to_string_lossy(),
+            "--bundle-target",
+            "x86_64-unknown-linux-gnu",
+        ])
+        .current_dir(&project.root)
+        .env("WF_LAUNCHER_REGISTRY", "/tmp/unused")
+        .output()
+        .expect("wf must be runnable");
+
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains("mutually exclusive"),
+        "{}",
+        stderr(&refused)
+    );
+}
+
+/// Neither --launcher nor --bundle-target given is refused.
+#[test]
+fn neither_launcher_nor_bundle_target_is_refused() {
+    let project = Project::new("neither");
+    setup_project(&project, "hello");
+
+    let result = project.wf(&["bundle"]);
+    assert!(!result.status.success());
+    assert!(
+        stderr(&result).contains("a launcher source is required"),
+        "{}",
+        stderr(&result)
+    );
+}
+
+/// An unsafe triple like "../evil" is refused with a diagnostic.
+#[test]
+fn unsafe_triple_is_refused() {
+    let project = Project::new("unsafe-triple");
+    setup_project(&project, "hello");
+
+    let result = Command::new(env!("CARGO_BIN_EXE_wf"))
+        .args(["bundle", "--bundle-target", "../evil"])
+        .current_dir(&project.root)
+        .output()
+        .expect("wf must be runnable");
+
+    assert!(!result.status.success());
+    assert!(
+        stderr(&result).contains("characters unsafe for a path component"),
+        "{}",
+        stderr(&result)
     );
 }
