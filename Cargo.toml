@@ -12,6 +12,7 @@ members = [
     "crates/wf-runtime",
     "crates/wf-toolchains",
     "crates/wf-cli",
+    "crates/wf-bundle",
 ]
 
 [workspace.package]
@@ -42,6 +43,10 @@ wasmparser = "0.260.0"
 # over a project's inputs; the hash happens here, never in `wf-core` (zero deps).
 blake3 = "1"
 
+# Distribution checksums per `plan.md` #69: SHA-256 over payload+metadata bytes
+# so a corrupted bundle is detected before the payload runs. Used by `wf-bundle`.
+sha2 = "0.10"
+
 # CLI argument parsing for the `wf` binary.
 clap = { version = "4.5", default-features = false, features = [
     "std",
@@ -61,3 +66,4 @@ wf-core = { path = "crates/wf-core", version = "0.1.0" }
 wf-wasm = { path = "crates/wf-wasm", version = "0.1.0" }
 wf-runtime = { path = "crates/wf-runtime", version = "0.1.0" }
 wf-toolchains = { path = "crates/wf-toolchains", version = "0.1.0" }
+wf-bundle = { path = "crates/wf-bundle", version = "0.1.0" }

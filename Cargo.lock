@@ -1957,6 +1957,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wf-bundle"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "wf-core",
+ "wf-runtime",
+]
+
+[[package]]
 name = "wf-cli"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,22 @@
+[package]
+name = "wf-bundle"
+description = "Bundle format and dev-launcher for WasmFoundry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Domain vocabulary: EntryPoint is a domain value, not a bare string.
+# wf-bundle depends on wf-core only for shared domain types.
+wf-core = { workspace = true }
+
+# The dev-launcher (bin target) executes payloads using wf-runtime's public API.
+# The lib target has no wf-runtime dependency; only the binary needs the engine.
+wf-runtime = { workspace = true }
+
+# Distribution checksums per plan.md #69: SHA-256 over payload+metadata bytes
+# so a corrupted bundle is detected before execution. sha2 is a standard crate,
+# not a hand-written hash implementation.
+sha2 = { workspace = true }
