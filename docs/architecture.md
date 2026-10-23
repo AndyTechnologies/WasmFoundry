@@ -21,7 +21,7 @@ decorative: each one exists so that a specific kind of change stays inside one c
 | `wf-wasm` | Everything asked *about* a WebAssembly binary | Execution, build orchestration |
 | `wf-runtime` | Engine, module, store, linker, instance, entry invocation | Parsing, compiling, CLI concerns |
 | `wf-toolchains` | Guest toolchains (Rust, C++, AssemblyScript, precompiled) and the build cache: one adapter per language, hashing for freshness | Manifest parsing, terminal output, execution |
-| `wf-bundle` | Bundle format POC (`[launcher][payload][metadata][footer]`) and the dev launcher | Compiling launchers, manifest parsing, build logic |
+| `wf-bundle` | Bundle format v1 (`[launcher][payload][metadata][footer]`), frozen footer and the dev launcher | Compiling launchers, manifest parsing, build logic |
 | `wf-cli` | Argument parsing, terminal output, exit codes | Domain logic of any kind |
 
 `wf-toolchains` arrived in PHASE 10 (a second real toolchain), `wf-bundle` in PHASE

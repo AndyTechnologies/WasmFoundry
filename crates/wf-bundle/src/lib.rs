@@ -1,16 +1,15 @@
-//! Bundle format: `[launcher][payload][metadata][footer]`.
+//! Bundle format v1: `[launcher][payload][metadata][footer]`.
 //!
 //! The footer is a fixed 84-byte structure at the end of the file. A launcher
 //! locates the payload by reading the footer from EOF — no ELF, Mach-O, or PE
-//! parsing is required. The format is POC (proof of concept) and not frozen;
-//! format v1 is frozen in PHASE 15.
+//! parsing is required. The format is frozen as v1 (PHASE 15).
 //!
 //! # Footer layout (all fields little-endian)
 //!
 //! | Offset | Size | Field            | Value                                          |
 //! | ------ | ---- | ---------------- | ---------------------------------------------- |
 //! | 0      | 8    | magic            | ASCII `"WFBUNDLE"`                             |
-//! | 8      | 4    | format_version   | `0` (POC; v1 frozen in PHASE 15)              |
+//! | 8      | 4    | format_version   | `1` (frozen v1)                                |
 //! | 12     | 4    | header_size      | Size of the footer in bytes (= 84)             |
 //! | 16     | 8    | payload_offset   | Absolute file offset of payload section         |
 //! | 24     | 8    | payload_size     | Length of payload section in bytes              |
@@ -50,11 +49,8 @@ pub const FOOTER_LEN: usize = 84;
 /// Exactly 8 bytes, no null padding: `"WFBUNDLE"`.
 const MAGIC: [u8; 8] = *b"WFBUNDLE";
 
-/// Current POC format version.
-///
-/// Format v1 is frozen in PHASE 15; this POC is version 0 to make it
-/// impossible to confuse a POC bundle with a frozen one.
-const FORMAT_VERSION: u32 = 0;
+/// Frozen format version for v1.
+const FORMAT_VERSION: u32 = 1;
 
 /// Result of probing a bundle file.
 ///
@@ -70,7 +66,7 @@ pub struct Probe<'a> {
     pub launcher_len: u64,
     /// Format version from the footer.
     pub format_version: u32,
-    /// Flags from the footer (reserved, always 0 for POC).
+    /// Flags from the footer (reserved, always 0 for v1).
     pub flags: u32,
 }
 
@@ -104,7 +100,7 @@ impl fmt::Display for BundleError {
             BundleError::UnknownVersion { found } => {
                 write!(
                     f,
-                    "unrecognised bundle format version {found}; this launcher supports version {FORMAT_VERSION}"
+                    "bundle format version {found} is not supported; version {FORMAT_VERSION} is required"
                 )
             }
             BundleError::Layout { source } => {
@@ -401,6 +397,42 @@ mod tests {
 
         let err = probe(&bundle).expect_err("should fail with bad magic");
         assert!(matches!(err, BundleError::BadMagic));
+    }
+
+    #[test]
+    fn format_v1_is_accepted() {
+        // The freeze: FORMAT_VERSION must be 1.
+        assert_eq!(FORMAT_VERSION, 1);
+
+        let bundle = build(b"launch", MINIMAL_WASM, b"meta").expect("build");
+        let probe = probe(&bundle).expect("probe v1 succeeds");
+        assert_eq!(probe.format_version, 1);
+    }
+
+    #[test]
+    fn format_v0_poc_is_rejected() {
+        // Version 0 was the POC; it must not be accepted after the freeze.
+        let mut bundle = build(b"launch", MINIMAL_WASM, b"meta").expect("build");
+        let footer_start = bundle.len() - FOOTER_LEN;
+        bundle[footer_start + 8..footer_start + 12].copy_from_slice(&0u32.to_le_bytes());
+
+        let err = probe(&bundle).expect_err("version 0 must be rejected");
+        assert!(matches!(err, BundleError::UnknownVersion { found: 0 }));
+        assert!(
+            err.to_string().contains("0"),
+            "error must name the found version"
+        );
+    }
+
+    #[test]
+    fn format_v2_future_is_rejected() {
+        // Version 2 (or any future version) must be rejected.
+        let mut bundle = build(b"launch", MINIMAL_WASM, b"meta").expect("build");
+        let footer_start = bundle.len() - FOOTER_LEN;
+        bundle[footer_start + 8..footer_start + 12].copy_from_slice(&2u32.to_le_bytes());
+
+        let err = probe(&bundle).expect_err("version 2 must be rejected");
+        assert!(matches!(err, BundleError::UnknownVersion { found: 2 }));
     }
 
     #[test]
