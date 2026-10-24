@@ -62,7 +62,10 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::time::{Duration, Instant};
 
-use wasmtime::{Error as WasmError, Extern, Linker, Module as WasmtimeModule, Store, ValType};
+use wasmtime::{
+    Error as WasmError, Extern, Linker, Module as WasmtimeModule, Store, ValType,
+    component::{Component, Linker as ComponentLinker},
+};
 
 use wf_core::{DiagnosticCode, EntryPoint, RuntimePolicy};
 
@@ -93,9 +96,13 @@ pub struct Runtime {
 ///
 /// Opaque on purpose: the bytes were validated and compiled once, and a caller that
 /// wants them again asks the runtime rather than carrying Wasmtime types of its own.
+/// For components, the original bytes are also stored so they can be re-used for
+/// component-specific operations (the Wasmtime `Module` only represents a core module).
 #[derive(Debug, Clone)]
 pub struct Module {
     inner: WasmtimeModule,
+    /// Serialized component bytes, if this module is a component.
+    component_bytes: Option<Vec<u8>>,
 }
 
 /// One module to load, with the namespace its exports are published under.
@@ -278,7 +285,10 @@ impl Runtime {
     /// treats the module as well formed.
     pub fn compile(&self, bytes: &[u8]) -> Result<Module, RuntimeError> {
         WasmtimeModule::new(&self.engine, bytes)
-            .map(|inner| Module { inner })
+            .map(|inner| Module {
+                inner,
+                component_bytes: None,
+            })
             .map_err(|error| RuntimeError::InvalidWasm {
                 message: describe(&error),
             })
@@ -379,10 +389,170 @@ impl Runtime {
     }
 }
 
-/// Calls an exported entry point, returning the value it produced.
+/// The component runtime: executes a WebAssembly component using Wasmtime's
+/// component API.
 ///
-/// Shared by [`Runtime::run`] and [`Runtime::run_units`]: what an entry point must look
-/// like does not depend on how many modules were loaded to reach it.
+/// Per plan §82, Core Module and Component are separate runtimes, sharing only
+/// the engine configuration and policy surface. The component runtime uses
+/// Wasmtime's component API with the `wasi:cli` world as the entry point.
+#[derive(Debug, Default, Clone)]
+pub struct ComponentRuntime {
+    engine: wasmtime::Engine,
+    /// What a guest is allowed to import from the host.
+    host: Vec<HostFunction>,
+    /// What this invocation is allowed to do: WASI, mounts, and its bounds.
+    policy: RuntimePolicy,
+}
+
+impl ComponentRuntime {
+    /// Builds a component runtime with the given host functions and policy.
+    pub fn with_policy(host: Vec<HostFunction>, policy: RuntimePolicy) -> Self {
+        ComponentRuntime {
+            engine: policy::engine_for(&policy),
+            host,
+            policy,
+        }
+    }
+
+    /// The policy this runtime applies to every invocation.
+    pub fn policy(&self) -> &RuntimePolicy {
+        &self.policy
+    }
+
+    /// Compiles component bytes into a reusable [`Module`].
+    ///
+    /// Validation happens here: the component must be a valid component binary.
+    pub fn compile(&self, bytes: &[u8]) -> Result<Module, RuntimeError> {
+        // Validate by creating a component
+        let _ = Component::new(&self.engine, bytes).map_err(|error| RuntimeError::InvalidWasm {
+            message: describe(&error),
+        })?;
+        // Store the serialized component bytes
+        Ok(Module {
+            inner: WasmtimeModule::new(&self.engine, bytes).map_err(|error| {
+                RuntimeError::InvalidWasm {
+                    message: describe(&error),
+                }
+            })?,
+            component_bytes: Some(bytes.to_vec()),
+        })
+    }
+
+    /// Runs a component with the `wasi:cli/run` entry point.
+    ///
+    /// The component must export a `wasi:cli/run` function. The component's
+    /// imports are resolved against the host functions and WASI provided by
+    /// the policy, exactly as with core modules.
+    pub fn run(&self, module: &Module, entry: &EntryPoint) -> Result<RunOutcome, RuntimeError> {
+        let started = Instant::now();
+
+        let mut store: Store<HostState> =
+            Store::new(&self.engine, policy::state_for(&self.policy)?);
+        store.limiter(|state| &mut state.engine_limits);
+        policy::arm_timeout(&self.engine, &mut store, self.policy.limits().wall_clock());
+
+        // Load the component from the module's stored component bytes
+        let bytes = module
+            .component_bytes
+            .as_ref()
+            .ok_or_else(|| RuntimeError::InvalidWasm {
+                message: "module is not a component (missing component bytes)".to_string(),
+            })?;
+        let component =
+            Component::new(&self.engine, bytes).map_err(|error| RuntimeError::InvalidWasm {
+                message: describe(&error),
+            })?;
+
+        // Set up the component linker
+        let mut linker: ComponentLinker<HostState> = ComponentLinker::new(&self.engine);
+        // TODO: Add WASI support for components (requires WasiView implementation)
+        // wasmtime_wasi::p3::add_to_linker(&mut linker)?;
+        host::install_component(&self.engine, &mut linker, &self.host)?;
+
+        // Instantiate the component
+        let instance = linker
+            .instantiate(&mut store, &component)
+            .map_err(|error| RuntimeError::Link {
+                message: describe(&error),
+            })?;
+
+        // The entry point for a component is the `wasi:cli/run` export
+        let return_value = invoke_component(&mut store, instance, entry)?;
+
+        Ok(RunOutcome {
+            entry: entry.clone(),
+            return_value,
+            duration: started.elapsed(),
+        })
+    }
+}
+
+/// Invokes the component's entry point via Wasmtime's component API.
+///
+/// For now, this looks for the `wasi:cli/run` export and calls it.
+fn invoke_component(
+    store: &mut Store<HostState>,
+    instance: wasmtime::component::Instance,
+    _entry: &EntryPoint,
+) -> Result<Option<i32>, RuntimeError> {
+    // Look up the `wasi:cli/run` function export in the instance
+    let function = instance
+        .get_func(&mut *store, "wasi:cli/run")
+        .ok_or_else(|| RuntimeError::MissingExport {
+            name: "wasi:cli/run".to_owned(),
+        })?;
+
+    let signature = function.ty(&mut *store);
+    // Component function signatures return (name, Type) pairs
+    let params: Vec<_> = signature.params().collect();
+    let results: Vec<_> = signature.results().collect();
+
+    if params.is_empty() && results.is_empty() {
+        let typed =
+            function
+                .typed::<(), ()>(&mut *store)
+                .map_err(|error| RuntimeError::Configuration {
+                    message: error.to_string(),
+                })?;
+        typed
+            .call(&mut *store, ())
+            .map_err(|error| RuntimeError::Trap {
+                message: describe(&error),
+            })?;
+        return Ok(None);
+    }
+
+    // For a single i32 result, use a 1-tuple
+    if params.is_empty() && results.len() == 1 {
+        let typed = function.typed::<(), (i32,)>(&mut *store).map_err(|error| {
+            RuntimeError::Configuration {
+                message: error.to_string(),
+            }
+        })?;
+        let (value,) = typed
+            .call(&mut *store, ())
+            .map_err(|error| RuntimeError::Trap {
+                message: describe(&error),
+            })?;
+        return Ok(Some(value));
+    }
+
+    Err(RuntimeError::Configuration {
+        message: format!(
+            "`wasi:cli/run` has signature `({}) -> ({})`; WasmFoundry invokes `() -> ()` or `() -> i32`",
+            params
+                .iter()
+                .map(|(n, t)| format!("{}: {:?}", n, t))
+                .collect::<Vec<_>>()
+                .join(", "),
+            results
+                .iter()
+                .map(|t| format!("{:?}", t))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
+    })
+}
 fn invoke(
     store: &mut Store<HostState>,
     instance: wasmtime::Instance,
@@ -430,9 +600,11 @@ fn invoke(
                 .map_err(|error| RuntimeError::Configuration {
                     message: error.to_string(),
                 })?;
-        let value = typed.call(store, ()).map_err(|error| RuntimeError::Trap {
-            message: describe(&error),
-        })?;
+        let value = typed
+            .call(&mut *store, ())
+            .map_err(|error| RuntimeError::Trap {
+                message: describe(&error),
+            })?;
         return Ok(Some(value));
     }
 

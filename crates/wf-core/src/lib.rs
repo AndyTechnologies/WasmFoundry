@@ -85,6 +85,7 @@
 //! it turns out not to require it.
 
 mod artifact;
+mod component;
 mod diagnostic;
 mod entry_point;
 mod graph;
@@ -95,6 +96,10 @@ mod policy;
 mod toolchain;
 
 pub use artifact::{Artifact, ArtifactId, ArtifactKind};
+pub use component::{
+    BuiltinType, Function, Interface, Type, WitComponent, WitName, WitPackage, WitQualifiedName,
+    World,
+};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use entry_point::EntryPoint;
 pub use graph::{Dependency, DependencyGraph, GraphError, ModuleId};

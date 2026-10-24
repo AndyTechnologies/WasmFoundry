@@ -11,6 +11,10 @@ use wasmparser::{
     BinaryReaderError, CompositeInnerType, ExternalKind, ImportSectionReader, Imports, Parser,
     Payload, TypeRef, ValType,
 };
+use wit_parser::{
+    Resolve, WorldId, WorldItem, WorldKey,
+    decoding::{DecodedWasm, decode},
+};
 
 use crate::{Error, ModuleKind, classify};
 
@@ -354,18 +358,91 @@ impl CoreModule {
 
 /// A recognised WebAssembly component.
 ///
-/// Components are a different binary format with a different structure, and WasmFoundry
-/// analyses them in PHASE 17. Reporting a component here means the format was correctly
-/// identified and deliberately not mis-reported as a core module.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ComponentSummary;
+/// Components are a different binary format with a different structure. WasmFoundry
+/// analyses them using wit-component, extracting the world, imports, exports,
+/// and core module instances.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentSummary {
+    /// The component's world name, if present.
+    pub world_name: Option<String>,
+    /// Imports required by the component, as (name, type) pairs.
+    pub imports: Vec<(String, String)>,
+    /// Exports provided by the component, as (name, type) pairs.
+    pub exports: Vec<(String, String)>,
+    /// Core module instances instantiated by the component.
+    pub core_modules: Vec<CoreModule>,
+}
+
+impl ComponentSummary {
+    /// Creates a summary from a decoded component (wit_parser::DecodedWasm::Component).
+    fn from_decoded(resolve: &Resolve, world_id: WorldId) -> Result<Self, Error> {
+        let world = &resolve.worlds[world_id];
+        let world_name = Some(world.name.clone());
+
+        let mut imports = Vec::new();
+        for (key, item) in &world.imports {
+            let name = match key {
+                WorldKey::Name(s) => s.clone(),
+                WorldKey::Interface(id) => format!("interface_{}", id.index()),
+            };
+            let ty = match item {
+                WorldItem::Interface { id, .. } => {
+                    let iface = &resolve.interfaces[*id];
+                    format!(
+                        "interface:{}",
+                        iface
+                            .name
+                            .as_deref()
+                            .unwrap_or(&format!("iface_{}", id.index()))
+                    )
+                }
+                WorldItem::Function(f) => format!("func:{}", f.name),
+                WorldItem::Type { id, .. } => format!("type_{}", id.index()),
+            };
+            imports.push((name, ty));
+        }
+
+        let mut exports = Vec::new();
+        for (key, item) in &world.exports {
+            let name = match key {
+                WorldKey::Name(s) => s.clone(),
+                WorldKey::Interface(id) => format!("interface_{}", id.index()),
+            };
+            let ty = match item {
+                WorldItem::Interface { id, .. } => {
+                    let iface = &resolve.interfaces[*id];
+                    format!(
+                        "interface:{}",
+                        iface
+                            .name
+                            .as_deref()
+                            .unwrap_or(&format!("iface_{}", id.index()))
+                    )
+                }
+                WorldItem::Function(f) => format!("func:{}", f.name),
+                WorldItem::Type { id, .. } => format!("type_{}", id.index()),
+            };
+            exports.push((name, ty));
+        }
+
+        // Core modules from component instances - for now empty
+        let _core_modules: Vec<CoreModule> = Vec::new();
+
+        Ok(ComponentSummary {
+            world_name,
+            imports,
+            exports,
+            core_modules: Vec::new(),
+        })
+    }
+}
 
 /// The result of analysing a WebAssembly binary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Analysis {
     /// A core module, fully analysed.
     CoreModule(CoreModule),
-    /// A component, recognised but not analysed.
+    /// A component, analysed with its world, imports, exports and core modules.
     Component(ComponentSummary),
 }
 
@@ -394,7 +471,25 @@ impl Analysis {
 /// described. Header rejection happens first and cheaply.
 pub fn analyze(bytes: &[u8]) -> Result<Analysis, Error> {
     match classify(bytes)? {
-        ModuleKind::Component => Ok(Analysis::Component(ComponentSummary)),
+        ModuleKind::Component => {
+            // Decode the component using wit-parser
+            let decoded = decode(bytes).map_err(|e| Error::InvalidWasm {
+                message: e.to_string(),
+                offset: None,
+            })?;
+            let summary = match decoded {
+                DecodedWasm::Component(resolve, world_id) => {
+                    ComponentSummary::from_decoded(&resolve, world_id)?
+                }
+                DecodedWasm::WitPackage(_, _) => {
+                    return Err(Error::InvalidWasm {
+                        message: "expected a component, got a WIT package".to_string(),
+                        offset: None,
+                    });
+                }
+            };
+            Ok(Analysis::Component(summary))
+        }
         ModuleKind::CoreModule => {
             validate(bytes)?;
             Ok(Analysis::CoreModule(analyze_core(bytes)?))

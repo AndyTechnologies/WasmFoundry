@@ -30,11 +30,13 @@
 mod build;
 mod bundle;
 mod cli;
+mod component;
 mod init;
 mod inspect;
 mod manifest;
 mod project;
 mod run;
+mod wit;
 
 /// The command succeeded.
 const EXIT_OK: i32 = 0;

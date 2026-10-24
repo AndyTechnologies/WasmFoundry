@@ -243,3 +243,18 @@ pub(crate) fn install(
     }
     Ok(())
 }
+
+/// Registers host functions in a component linker.
+///
+/// Component model host functions use a different calling convention than core
+/// WebAssembly functions. For the POC, no host functions are exposed to components
+/// yet; this function is a placeholder for future expansion.
+pub(crate) fn install_component(
+    _engine: &wasmtime::Engine,
+    _linker: &mut wasmtime::component::Linker<crate::policy::HostState>,
+    _functions: &[HostFunction],
+) -> Result<(), crate::RuntimeError> {
+    // TODO: Implement host function registration for components
+    // This requires using the component model's typed function API
+    Ok(())
+}

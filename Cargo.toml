@@ -34,6 +34,7 @@ wasmtime = { version = "49.0.1", default-features = false, features = [
     "std",
     "runtime",
     "cranelift",
+    "component-model",
 ] }
 
 # Binary analysis. WebAssemblyFoundry never ships a hand-written parser.

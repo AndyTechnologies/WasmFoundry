@@ -17,6 +17,11 @@ repository.workspace = true
 # public surface.
 wasmparser = { workspace = true }
 
+# Component Model analysis (PHASE 17). Parsing component sections and WIT
+# metadata via wit-component (wasmparser-based) and wit-parser.
+wit-component = "0.261"
+wit-parser = "0.261"
+
 # `wf-core` is intentionally NOT a dependency yet. It is added when the first
 # `wf-core` type (planned: `Diagnostic`) is actually returned across this
 # boundary, not before.
