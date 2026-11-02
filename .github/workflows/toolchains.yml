@@ -49,7 +49,7 @@ jobs:
       - name: Test Rust toolchain
         run: |
           set -euo pipefail
-          WF=./target/release/wf
+          WF=$(pwd)/target/release/wf
           mkdir -p toolchain-rust
           cd toolchain-rust
           printf 'schema = 1\n[package]\nname = "rust-toolchain-test"\nversion = "0.1.0"\n[project]\nsource_dir = "src"\nentry = "_start"\n[[module]]\nname = "hello"\nsource = "src"\ntoolchain = "rust"\n' > wasmfoundry.toml
@@ -94,7 +94,7 @@ jobs:
       - name: Test C++ toolchain
         run: |
           set -euo pipefail
-          WF=./target/release/wf
+          WF=$(pwd)/target/release/wf
           mkdir -p toolchain-cpp
           cd toolchain-cpp
           printf 'schema = 1\n[package]\nname = "cpp-toolchain-test"\nversion = "0.1.0"\n[project]\nsource_dir = "src"\nentry = "_start"\n[[module]]\nname = "hello"\nsource = "src"\ntoolchain = "cpp"\n' > wasmfoundry.toml
@@ -139,7 +139,7 @@ jobs:
       - name: Test AssemblyScript toolchain
         run: |
           set -euo pipefail
-          WF=./target/release/wf
+          WF=$(pwd)/target/release/wf
           mkdir -p toolchain-as
           cd toolchain-as
           printf 'schema = 1\n[package]\nname = "as-toolchain-test"\nversion = "0.1.0"\n[project]\nsource_dir = "src"\nentry = "_start"\n[[module]]\nname = "hello"\nsource = "src"\ntoolchain = "assemblyscript"\n' > wasmfoundry.toml

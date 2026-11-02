@@ -49,7 +49,7 @@ jobs:
       - name: Run E2E with precompiled toolchain
         run: |
           set -euo pipefail
-          WF=./target/release/wf
+          WF=$(pwd)/target/release/wf
           $WF init e2e-test
           cd e2e-test
           $WF build
@@ -89,7 +89,7 @@ jobs:
       - name: Run E2E with Rust toolchain
         run: |
           set -euo pipefail
-          WF=./target/release/wf
+          WF=$(pwd)/target/release/wf
           mkdir -p rust-e2e
           cd rust-e2e
           # Write wasmfoundry.toml
@@ -136,7 +136,7 @@ jobs:
       - name: Run E2E with multi-module
         run: |
           set -euo pipefail
-          WF=./target/release/wf
+          WF=$(pwd)/target/release/wf
           mkdir -p multi-e2e
           cd multi-e2e
           # Write wasmfoundry.toml
