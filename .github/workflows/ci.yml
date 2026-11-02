@@ -61,6 +61,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+      - name: Ensure wasm32 target is installed
+        run: rustup target add wasm32-unknown-unknown
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
