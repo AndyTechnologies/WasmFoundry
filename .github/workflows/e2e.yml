@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -162,7 +164,7 @@ jobs:
     steps:
       - name: Check all E2E jobs passed
         run: |
-          if echo "${{ needs.e2e-precompiled.result }}${NEEDS.e2e-rust.result}${NEEDS.e2e-multi-module.result}" | grep -q "failure\|cancelled"; then
+          if echo "${{ needs.e2e-precompiled.result }}${{ needs.e2e-rust.result }}${{ needs.e2e-multi-module.result }}" | grep -q "failure\|cancelled"; then
             echo "One or more E2E jobs failed"
             exit 1
           fi

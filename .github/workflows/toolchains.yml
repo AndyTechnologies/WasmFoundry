@@ -159,7 +159,7 @@ jobs:
     steps:
       - name: Check all toolchain jobs passed
         run: |
-          if echo "${{ needs.rust.result }}${NEEDS.cpp.result}${NEEDS.assemblyscript.result}" | grep -q "failure\|cancelled"; then
+          if echo "${{ needs.rust.result }}${{ needs.cpp.result }}${{ needs.assemblyscript.result }}" | grep -q "failure\|cancelled"; then
             echo "One or more toolchain jobs failed"
             exit 1
           fi

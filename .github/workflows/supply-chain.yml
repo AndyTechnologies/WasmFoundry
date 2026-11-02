@@ -82,7 +82,7 @@ jobs:
     steps:
       - name: Check all supply chain jobs passed
         run: |
-          if echo "${{ needs.deny.result }}${NEEDS.audit.result}" | grep -q "failure\|cancelled"; then
+          if echo "${{ needs.deny.result }}${{ needs.audit.result }}" | grep -q "failure\|cancelled"; then
             echo "One or more supply chain jobs failed"
             exit 1
           fi
