@@ -57,6 +57,7 @@ jobs:
         $WF inspect target/hello.wasm --format json
 
         echo "Precompiled E2E passed""'
+    timeout-minutes: 30
   e2e-rust:
     name: E2E - Rust toolchain
     runs-on: ubuntu-latest
@@ -169,6 +170,7 @@ jobs:
         $WF inspect target/hello.wasm
 
         echo "Rust toolchain E2E passed""'
+    timeout-minutes: 30
   e2e-multi-module:
     name: E2E - Multi-module
     runs-on: ubuntu-latest
@@ -323,6 +325,7 @@ jobs:
         $WF run
 
         echo "Multi-module E2E passed""'
+    timeout-minutes: 30
   e2e:
     name: E2E Summary
     runs-on: ubuntu-latest

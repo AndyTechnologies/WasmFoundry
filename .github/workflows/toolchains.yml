@@ -117,6 +117,7 @@ jobs:
         $WF run
 
         echo "Rust toolchain test passed""'
+    timeout-minutes: 30
   cpp:
     name: C++ toolchain (clang++)
     runs-on: ubuntu-latest
@@ -198,6 +199,7 @@ jobs:
         $WF run
 
         echo "C++ toolchain test passed""'
+    timeout-minutes: 30
   assemblyscript:
     name: AssemblyScript toolchain (asc)
     runs-on: ubuntu-latest
@@ -283,6 +285,7 @@ jobs:
         $WF run
 
         echo "AssemblyScript toolchain test passed""'
+    timeout-minutes: 30
   toolchains:
     name: Toolchains Summary
     runs-on: ubuntu-latest
