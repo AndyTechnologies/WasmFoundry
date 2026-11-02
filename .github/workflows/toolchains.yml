@@ -1,166 +1,297 @@
-# WasmFoundry Multi-Toolchain CI
-#
-# Tests each guest toolchain (Rust, C++, AssemblyScript) with only the
-# dependencies that toolchain needs. This follows plan.md §124.
-
 name: Toolchains
-
-on:
+'on':
   push:
-    branches: [main]
+    branches:
+    - main
   pull_request:
-    branches: [main]
-
+    branches:
+    - main
 permissions:
   contents: read
-
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
-
+  RUSTFLAGS: -D warnings
 jobs:
   rust:
     name: Rust toolchain
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-target-rust-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-target-rust-
-      - name: Build wf binary
-        run: cargo build --release -p wf-cli
-      - name: Test Rust toolchain
-        run: |
-          set -euo pipefail
-          WF=$(pwd)/target/release/wf
-          mkdir -p toolchain-rust
-          cd toolchain-rust
-          printf 'schema = 1\n[package]\nname = "rust-toolchain-test"\nversion = "0.1.0"\n[project]\nsource_dir = "src"\nentry = "_start"\n[[module]]\nname = "hello"\nsource = "src"\ntoolchain = "rust"\n' > wasmfoundry.toml
-          mkdir -p src
-          printf '[package]\nname = "hello"\nversion = "0.1.0"\nedition = "2021"\n[lib]\ncrate-type = ["cdylib"]\n' > src/Cargo.toml
-          mkdir -p src/src
-          printf '#[no_mangle]\npub extern "C" fn _start() -> i32 { 123 }\n' > src/src/lib.rs
-          $WF build
-          test -f target/hello.wasm
-          $WF run
-          echo "Rust toolchain test passed"
+    - uses: actions/checkout@v4
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path:
+        - ~/.cargo/registry
+        - ~/.cargo/git
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys:
+        - ${{ runner.os }}-cargo-
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-target-rust-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys:
+        - ${{ runner.os }}-target-rust-
+    - name: Build wf binary
+      run: cargo build --release -p wf-cli
+    - name: Test Rust toolchain
+      run: 'set -euo pipefail
 
+        WF=$(pwd)/target/release/wf
+
+        mkdir -p toolchain-rust
+
+        cd toolchain-rust
+
+        # Write wasmfoundry.toml
+
+        cat > wasmfoundry.toml << ''EOF''
+
+        schema = 1
+
+        [package]
+
+        name = "rust-toolchain-test"
+
+        version = "0.1.0"
+
+        [project]
+
+        source_dir = "src"
+
+        entry = "_start"
+
+        [[module]]
+
+        name = "hello"
+
+        source = "src"
+
+        toolchain = "rust"
+
+        EOF
+
+        # Write Cargo.toml
+
+        mkdir -p src
+
+        cat > src/Cargo.toml << ''EOF''
+
+        [package]
+
+        name = "hello"
+
+        version = "0.1.0"
+
+        edition = "2021"
+
+        [lib]
+
+        crate-type = ["cdylib"]
+
+        [workspace]
+
+        EOF
+
+        # Write lib.rs
+
+        mkdir -p src/src
+
+        cat > src/src/lib.rs << ''EOF''
+
+        #[no_mangle]
+
+        pub extern "C" fn _start() -> i32 { 123 }
+
+        EOF
+
+        $WF build
+
+        test -f target/hello.wasm
+
+        $WF run
+
+        echo "Rust toolchain test passed""'
   cpp:
     name: C++ toolchain (clang++)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain (for wf binary)
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install clang++ and wasi-sdk
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld wasi-sdk
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-target-cpp-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-target-cpp-
-      - name: Build wf binary
-        run: cargo build --release -p wf-cli
-      - name: Test C++ toolchain
-        run: |
-          set -euo pipefail
-          WF=$(pwd)/target/release/wf
-          mkdir -p toolchain-cpp
-          cd toolchain-cpp
-          printf 'schema = 1\n[package]\nname = "cpp-toolchain-test"\nversion = "0.1.0"\n[project]\nsource_dir = "src"\nentry = "_start"\n[[module]]\nname = "hello"\nsource = "src"\ntoolchain = "cpp"\n' > wasmfoundry.toml
-          mkdir -p src
-          printf 'extern "C" int _start() { return 456; }\n' > src/hello.cpp
-          $WF build
-          test -f target/hello.wasm
-          $WF run
-          echo "C++ toolchain test passed"
+    - uses: actions/checkout@v4
+    - name: Install Rust toolchain (for wf binary)
+      uses: dtolnay/rust-toolchain@stable
+    - name: Install clang++ and wasi-sdk
+      run: sudo apt-get update && sudo apt-get install -y clang lld wasi-sdk
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path:
+        - ~/.cargo/registry
+        - ~/.cargo/git
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys:
+        - ${{ runner.os }}-cargo-
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-target-cpp-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys:
+        - ${{ runner.os }}-target-cpp-
+    - name: Build wf binary
+      run: cargo build --release -p wf-cli
+    - name: Test C++ toolchain
+      run: 'set -euo pipefail
 
+        WF=$(pwd)/target/release/wf
+
+        mkdir -p toolchain-cpp
+
+        cd toolchain-cpp
+
+        # Write wasmfoundry.toml
+
+        cat > wasmfoundry.toml << ''EOF''
+
+        schema = 1
+
+        [package]
+
+        name = "cpp-toolchain-test"
+
+        version = "0.1.0"
+
+        [project]
+
+        source_dir = "src"
+
+        entry = "_start"
+
+        [[module]]
+
+        name = "hello"
+
+        source = "src"
+
+        toolchain = "cpp"
+
+        EOF
+
+        # Write hello.cpp
+
+        mkdir -p src
+
+        cat > src/hello.cpp << ''EOF''
+
+        extern "C" int _start() { return 456; }
+
+        EOF
+
+        $WF build
+
+        test -f target/hello.wasm
+
+        $WF run
+
+        echo "C++ toolchain test passed""'
   assemblyscript:
     name: AssemblyScript toolchain (asc)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain (for wf binary)
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install Node.js and AssemblyScript
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install AssemblyScript
-        run: npm install -g assemblyscript
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-target-as-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-target-as-
-      - name: Build wf binary
-        run: cargo build --release -p wf-cli
-      - name: Test AssemblyScript toolchain
-        run: |
-          set -euo pipefail
-          WF=$(pwd)/target/release/wf
-          mkdir -p toolchain-as
-          cd toolchain-as
-          printf 'schema = 1\n[package]\nname = "as-toolchain-test"\nversion = "0.1.0"\n[project]\nsource_dir = "src"\nentry = "_start"\n[[module]]\nname = "hello"\nsource = "src"\ntoolchain = "assemblyscript"\n' > wasmfoundry.toml
-          mkdir -p src
-          printf 'export function _start(): i32 { return 789; }\n' > src/hello.ts
-          $WF build
-          test -f target/hello.wasm
-          $WF run
-          echo "AssemblyScript toolchain test passed"
+    - uses: actions/checkout@v4
+    - name: Install Rust toolchain (for wf binary)
+      uses: dtolnay/rust-toolchain@stable
+    - name: Install Node.js and AssemblyScript
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install AssemblyScript
+      run: npm install -g assemblyscript
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path:
+        - ~/.cargo/registry
+        - ~/.cargo/git
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys:
+        - ${{ runner.os }}-cargo-
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-target-as-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys:
+        - ${{ runner.os }}-target-as-
+    - name: Build wf binary
+      run: cargo build --release -p wf-cli
+    - name: Test AssemblyScript toolchain
+      run: 'set -euo pipefail
 
-  # Aggregate job
+        WF=$(pwd)/target/release/wf
+
+        mkdir -p toolchain-as
+
+        cd toolchain-as
+
+        # Write wasmfoundry.toml
+
+        cat > wasmfoundry.toml << ''EOF''
+
+        schema = 1
+
+        [package]
+
+        name = "as-toolchain-test"
+
+        version = "0.1.0"
+
+        [project]
+
+        source_dir = "src"
+
+        entry = "_start"
+
+        [[module]]
+
+        name = "hello"
+
+        source = "src"
+
+        toolchain = "assemblyscript"
+
+        EOF
+
+        # Write hello.ts
+
+        mkdir -p src
+
+        cat > src/hello.ts << ''EOF''
+
+        export function _start(): i32 { return 789; }
+
+        EOF
+
+        $WF build
+
+        test -f target/hello.wasm
+
+        $WF run
+
+        echo "AssemblyScript toolchain test passed""'
   toolchains:
     name: Toolchains Summary
     runs-on: ubuntu-latest
-    needs: [rust, cpp, assemblyscript]
+    needs:
+    - rust
+    - cpp
+    - assemblyscript
     if: always()
     steps:
-      - name: Check all toolchain jobs passed
-        run: |
-          if echo "${{ needs.rust.result }}${{ needs.cpp.result }}${{ needs.assemblyscript.result }}" | grep -q "failure\|cancelled"; then
-            echo "One or more toolchain jobs failed"
-            exit 1
-          fi
-          echo "All toolchain tests passed"
+    - name: Check all toolchain jobs passed
+      run: "if echo \"${{ needs.rust.result }}${{ needs.cpp.result }}${{ needs.assemblyscript.result }}\" | grep -q \"failure|cancelled\"; then\n  echo \"One or more toolchain jobs failed\"\n  exit 1\n\
+        fi\necho \"All toolchain tests passed\"\""
