@@ -29,6 +29,7 @@ fn valid_manifest() -> Manifest {
             toolchain: "precompiled".to_owned(),
             namespace: None,
         }],
+        plugins: Vec::new(),
     }
 }
 
@@ -76,6 +77,7 @@ fn an_unknown_schema_is_not_partially_interpreted() {
             host_namespaces: Vec::new(),
         },
         modules: Vec::new(),
+        plugins: Vec::new(),
     };
 
     let diagnostics = manifest.validate();
@@ -217,6 +219,7 @@ fn a_degenerate_manifest_never_panics() {
             toolchain: String::new(),
             namespace: None,
         }],
+        plugins: Vec::new(),
     };
 
     let diagnostics = manifest.validate();

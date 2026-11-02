@@ -21,6 +21,8 @@ pub struct Manifest {
     pub project: Project,
     /// The modules this project produces, in manifest order.
     pub modules: Vec<ModuleSpec>,
+    /// The plugins this project uses, in manifest order.
+    pub plugins: Vec<crate::PluginConfig>,
 }
 
 /// What the runtime does for one project.

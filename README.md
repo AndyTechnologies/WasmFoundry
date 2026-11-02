@@ -8,11 +8,8 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: PHASE 10–11.** Three guest toolchains (Rust, C++, AssemblyScript) behind one
-> `Toolchain` adapter, now living in their own crate; multi-module composition, the Host
-> ABI, and WASI under an explicit policy: mounts, capabilities granted rather than
-> assumed, and bounds that stop a guest that crosses them. Everything else is still
-> ahead — see [Status](#status).
+> **Status: `v0.1.0` released.** All core features implemented through PHASE 21.
+> See [Status](#status) for the complete phase list.
 
 ---
 
@@ -75,9 +72,10 @@ Two rules are worth stating here because they shape everything else:
 | Crate | Responsibility | Key dependency |
 | --- | --- | --- |
 | `wf-core` | Domain vocabulary and pure rules. Zero dependencies. | none |
-| `wf-wasm` | Analysis of a WebAssembly binary: kind, imports, exports, validation. | `wasmparser` |
+| `wf-wasm` | Analysis of a WebAssembly binary: kind, imports, exports, validation. | `wasmparser`, `wit-parser`, `wit-component` |
 | `wf-runtime` | Execution of an analysed module under Wasmtime. | `wasmtime` |
-| `wf-toolchains` | Guest toolchains: Rust, C++, AssemblyScript, precompiled wasm. | `toml` (guest crate manifests) |
+| `wf-toolchains` | Guest toolchains: Rust, C++, AssemblyScript, precompiled wasm, components, plugins. | `toml` (guest crate manifests) |
+| `wf-bundle` | Bundle format v1, launcher probing, checksum validation. | `sha2`, `blake3` |
 | `wf-cli` | The `wf` command line interface. | `clap` |
 
 ---
@@ -134,6 +132,19 @@ wf build --watch
 # Analyse any binary without executing it, for a human or as JSON for other tools.
 wf inspect target/hello.wasm
 wf inspect target/hello.wasm --format json
+
+# Build a WebAssembly Component
+wf component build /path/to/component-project
+# Component toolchain uses `cargo component` + WIT validation
+
+# Manage plugins (Wasm Components implementing wf:plugin/guest)
+wf plugin init my-plugin
+cd my-plugin
+wf plugin build
+# Copy target/my-plugin.wasm to your project's plugins/ directory
+
+# Validate a WIT file
+wf wit check path/to/file.wit
 ```
 
 A Rust guest needs the guest target installed once:
@@ -294,18 +305,21 @@ and must pass its gate before the next begins.
 | Phase | Delivers | Gate |
 | --- | --- | --- |
 | 0–1 | Legacy state preserved, `main` reset | ✅ done |
-| 2 | Rust workspace, four crates, documentation | ✅ current |
+| 2 | Rust workspace, four crates, documentation | ✅ done |
 | 3 | `wf inspect` | ✅ done |
-| 4 | `wf run` | pending |
+| 4 | `wf run` | ✅ done |
 | 5 | `wf init`, `wf build` for precompiled wasm | ✅ done |
 | 6 | Rust guest toolchain | ✅ done |
 | 7 | Dependency graph and module matching | ✅ done |
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | ✅ done |
 | 10–11 | C++ and AssemblyScript toolchains, `wf-toolchains` crate | ✅ done |
-| 12–13 | Cache, watch | ✅ done |
-| 14–16 | Bundle format v1 and prebuilt launchers | format v1 frozen ✅; prebuilt launcher distribution pending PHASE 21 |
-| 17 | Component model support | pending |
-| 19–21 | Supply-chain tooling, CI, `v0.1.0` | pending |
+| 12–13 | Build cache (BLAKE3), `wf build --watch` | ✅ done |
+| 14–16 | Bundle format v1, prebuilt launchers, cross-target | ✅ done |
+| 17 | Component Model + WIT | ✅ done |
+| 18 | External plugins (Wasm Components) | ✅ done |
+| 19 | Security tooling + supply chain (`cargo-deny`, `cargo-audit`) | ✅ done |
+| 20 | CI/CD (GitHub Actions) | ✅ done |
+| 21 | Release pipeline + `v0.1.0` | ✅ done |
 
 Functional parity with the previous generation of this project is tracked explicitly in
 [`docs/parity-matrix.md`](docs/parity-matrix.md), including the capabilities that are

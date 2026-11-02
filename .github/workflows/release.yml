@@ -1,0 +1,196 @@
+# WasmFoundry Release
+#
+# Triggered on version tags (v*). Builds launchers for all targets,
+# generates checksums and SBOM, creates GitHub Release.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build-launchers:
+    name: Build launchers
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-${{ matrix.target }}-
+      
+      - name: Install cross (for non-native targets)
+        if: matrix.target != 'x86_64-unknown-linux-gnu'
+        run: cargo install cross --locked
+      
+      - name: Build launcher
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-gnu" ]; then
+            cargo build --release --target ${{ matrix.target }} -p wf-launcher
+          else
+            cross build --release --target ${{ matrix.target }} -p wf-launcher
+          fi
+      
+      - name: Determine output name
+        id: output
+        run: |
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            echo "name=wf-launcher.exe" >> $GITHUB_OUTPUT
+          else
+            echo "name=wf-launcher" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Copy artifact
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ steps.output.outputs.name }} \
+             dist/${{ steps.output.outputs.name }}-${{ matrix.target }}
+      
+      - name: Generate checksum
+        run: |
+          sha256sum dist/${{ steps.output.outputs.name }}-${{ matrix.target }} \
+            > dist/${{ steps.output.outputs.name }}-${{ matrix.target }}.sha256
+      
+      - name: Upload launcher artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-${{ matrix.target }}
+          path: |
+            dist/${{ steps.output.outputs.name }}-${{ matrix.target }}
+            dist/${{ steps.output.outputs.name }}-${{ matrix.target }}.sha256
+          retention-days: 30
+
+  # Aggregate all launchers and create release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-launchers
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all launcher artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      
+      - name: Verify artifacts
+        run: |
+          ls -la dist/
+          echo "Expected 5 launchers + 5 checksums = 10 files"
+          test $(find dist -type f | wc -l) -eq 10
+      
+      - name: Generate combined checksums
+        run: |
+          cd dist
+          sha256sum wf-launcher-* > checksums.sha256 2>/dev/null || true
+          cat checksums.sha256
+      
+      - name: Generate SBOM
+        id: sbom
+        run: |
+          cargo install cargo-sbom --locked
+          cargo sbom --format cyclonedx-json --output dist/sbom.cdx.json
+          echo "sbom_path=dist/sbom.cdx.json" >> $GITHUB_OUTPUT
+      
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog from conventional commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD > dist/CHANGELOG.md
+          else
+            git log --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
+          fi
+          cat dist/CHANGELOG.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: WasmFoundry ${{ steps.version.outputs.version }}
+          body_path: dist/CHANGELOG.md
+          files: |
+            dist/wf-launcher-*
+            dist/wf-launcher-*.sha256
+            dist/checksums.sha256
+            dist/sbom.cdx.json
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Verify the release artifacts work
+  verify-release:
+    name: Verify Release Artifacts
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      
+      - name: Verify checksums
+        run: |
+          cd dist
+          sha256sum -c checksums.sha256
+      
+      - name: Test Linux launchers (native)
+        run: |
+          cd dist
+          chmod +x wf-launcher-x86_64-unknown-linux-gnu
+          ./wf-launcher-x86_64-unknown-linux-gnu --help 2>&1 | head -5
+      
+      - name: Verify SBOM format
+        run: |
+          jq .bomFormat dist/sbom.cdx.json
+          jq .specVersion dist/sbom.cdx.json

@@ -34,6 +34,7 @@ mod component;
 mod init;
 mod inspect;
 mod manifest;
+mod plugin;
 mod project;
 mod run;
 mod wit;

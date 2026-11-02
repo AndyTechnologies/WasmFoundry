@@ -8,6 +8,7 @@
 pub mod assemblyscript_toolchain;
 pub mod component_toolchain;
 pub mod cpp_toolchain;
+pub mod plugin_toolchain;
 pub mod precompiled;
 pub mod rust_toolchain;
 
@@ -22,6 +23,7 @@ use crate::process::ProcessRunner;
 pub use assemblyscript_toolchain::AssemblyScriptToolchain;
 pub use component_toolchain::ComponentToolchain;
 pub use cpp_toolchain::CppToolchain;
+pub use plugin_toolchain::PluginToolchain;
 pub use precompiled::PrecompiledToolchain;
 pub use rust_toolchain::RustToolchain;
 
@@ -174,6 +176,7 @@ pub fn lookup(id: &ToolchainId) -> Option<&'static dyn Toolchain> {
         "assemblyscript" => Some(&AssemblyScriptToolchain),
         "component" => Some(&ComponentToolchain),
         "cpp" => Some(&CppToolchain),
+        "plugin" => Some(&PluginToolchain),
         "precompiled" => Some(&PrecompiledToolchain),
         "rust" => Some(&RustToolchain),
         _ => None,
@@ -190,7 +193,7 @@ pub fn unknown_toolchain(module: &ModuleSpec, id: &ToolchainId) -> Diagnostic {
             module.name, id
         ),
     )
-    .with_help("supported toolchains: precompiled, rust, cpp, assemblyscript, component")
+    .with_help("supported toolchains: precompiled, rust, cpp, assemblyscript, component, plugin")
 }
 
 /// Publishes validated bytes as a project artifact.

@@ -7,8 +7,9 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use wf_core::{Diagnostic, EntryPoint, Severity, namespace_of};
-use wf_runtime::{Runtime, RuntimeError, Unit};
+use wf_core::{Diagnostic, DiagnosticCode, EntryPoint, Severity, namespace_of};
+use wf_runtime::{ComponentRuntime, Runtime, RuntimeError, Unit};
+use wf_wasm::classify;
 
 use crate::cli::RunArgs;
 use crate::manifest::MANIFEST_FILE;
@@ -60,7 +61,8 @@ pub fn run(args: &RunArgs) -> i32 {
     // The whole portable console ABI, decided once per run: what a guest can reach from
     // the host is a property of the invocation, not of the binary. See
     // docs/abi/host-abi-v1.md.
-    let runtime = Runtime::with_policy(wf_runtime::console(), policy);
+    let runtime = Runtime::with_policy(wf_runtime::console(), policy.clone());
+    let component_runtime = ComponentRuntime::with_policy(wf_runtime::console(), policy);
 
     match planned {
         Planned::Module(path) => {
@@ -72,14 +74,47 @@ pub fn run(args: &RunArgs) -> i32 {
                 }
             };
 
-            let module = match runtime.compile(&bytes) {
-                Ok(module) => module,
-                Err(error) => return failure(&error),
+            // Detect if this is a component or core module
+            let kind = match classify(&bytes) {
+                Ok(kind) => kind,
+                Err(error) => {
+                    // Map wf_wasm::Error to DiagnosticCode
+                    let code = match &error {
+                        wf_wasm::Error::TruncatedHeader { .. } => DiagnosticCode::InvalidWasm,
+                        wf_wasm::Error::BadMagic(_) => DiagnosticCode::InvalidWasm,
+                        wf_wasm::Error::UnsupportedVersion { .. } => DiagnosticCode::InvalidWasm,
+                        wf_wasm::Error::UnsupportedLayer { .. } => DiagnosticCode::InvalidWasm,
+                        wf_wasm::Error::InvalidWasm { .. } => DiagnosticCode::InvalidWasm,
+                    };
+                    let diagnostic = Diagnostic::new(code, Severity::Error, error.to_string());
+                    eprintln!("{diagnostic}");
+                    return EXIT_DIAGNOSTIC;
+                }
             };
 
-            match runtime.run(&module, &entry) {
-                Ok(outcome) => report_outcome(&path.display().to_string(), &outcome),
-                Err(error) => failure(&error),
+            match kind {
+                wf_wasm::ModuleKind::Component => {
+                    let module = match component_runtime.compile(&bytes) {
+                        Ok(module) => module,
+                        Err(error) => return failure(&error),
+                    };
+
+                    match component_runtime.run(&module, &entry) {
+                        Ok(outcome) => report_outcome(&path.display().to_string(), &outcome),
+                        Err(error) => failure(&error),
+                    }
+                }
+                wf_wasm::ModuleKind::CoreModule => {
+                    let module = match runtime.compile(&bytes) {
+                        Ok(module) => module,
+                        Err(error) => return failure(&error),
+                    };
+
+                    match runtime.run(&module, &entry) {
+                        Ok(outcome) => report_outcome(&path.display().to_string(), &outcome),
+                        Err(error) => failure(&error),
+                    }
+                }
             }
         }
 

@@ -8,9 +8,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use wasmtime::{Config, Engine, Linker, Store, StoreLimits, StoreLimitsBuilder};
-use wasmtime_wasi::WasiCtxBuilder;
+use wasmtime::component::Linker as ComponentLinker;
+use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::filesystem::FsPerms;
+use wasmtime_wasi::p1::{WasiP1Ctx, add_to_linker_sync};
+use wasmtime_wasi::p2::add_to_linker_sync as add_wasi_p2_to_linker_sync;
+use wasmtime_wasi::{WasiCtxBuilder, WasiCtxView, WasiView};
 
 use wf_core::{ExecutionLimits, FilesystemAccess, RuntimePolicy};
 
@@ -22,7 +25,7 @@ pub const PAGE_BYTES: u64 = 64 * 1024;
 /// Everything one invocation carries besides its modules.
 pub(crate) struct HostState {
     /// The WASI context, present only when the policy granted WASI.
-    pub(crate) wasi: Option<wasmtime_wasi::p1::WasiP1Ctx>,
+    pub(crate) wasi: Option<WasiP1Ctx>,
     /// The bounds this invocation runs under, for reporting which one was hit.
     pub(crate) limits: ExecutionLimits,
     /// The memory ceiling itself, so a refused growth can be told from any other trap.
@@ -35,6 +38,16 @@ pub(crate) struct HostState {
     pub(crate) timed_out: Arc<AtomicBool>,
 }
 
+impl WasiView for HostState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        let wasi_ctx = self
+            .wasi
+            .as_mut()
+            .expect("WASI context only available when policy granted WASI");
+        wasi_ctx.ctx()
+    }
+}
+
 /// Builds an engine configured for the policy's limits.
 ///
 /// Epoch interruption is enabled only when a wall-clock budget exists: a policy without
@@ -45,6 +58,9 @@ pub(crate) fn engine_for(policy: &RuntimePolicy) -> Engine {
     if policy.limits().wall_clock().is_some() {
         config.epoch_interruption(true);
     }
+    // Enable async support for WASI 0.3 component model
+    config.wasm_component_model_async(true);
+    config.wasm_memory64(true);
     Engine::new(&config).expect("the default engine configuration is always valid")
 }
 
@@ -82,9 +98,9 @@ pub(crate) fn state_for(policy: &RuntimePolicy) -> Result<HostState, RuntimeErro
 ///
 /// Only what the policy grants appears in it: the standard streams so a guest's output is
 /// visible, the mounts it declared, and nothing else. The host environment and arguments
-/// are deliberately absent — the default is that a guest sees no secrets and learns
+/// are deliberately absent -- the default is that a guest sees no secrets and learns
 /// nothing about the machine it is running on.
-fn wasi_context(policy: &RuntimePolicy) -> Result<wasmtime_wasi::p1::WasiP1Ctx, RuntimeError> {
+fn wasi_context(policy: &RuntimePolicy) -> Result<WasiP1Ctx, RuntimeError> {
     let mut builder = WasiCtxBuilder::new();
 
     // The guest's own output is the point of running it, so the streams are inherited.
@@ -119,14 +135,14 @@ fn wasi_context(policy: &RuntimePolicy) -> Result<wasmtime_wasi::p1::WasiP1Ctx, 
 /// When it did not, the guest's WASI imports have no provider at all, which is a stronger
 /// answer than providing them with every permission removed.
 pub(crate) fn install_wasi(
-    linker: &mut Linker<HostState>,
+    linker: &mut wasmtime::Linker<HostState>,
     policy: &RuntimePolicy,
 ) -> Result<(), RuntimeError> {
     if !policy.wasi_enabled() {
         return Ok(());
     }
 
-    wasmtime_wasi::p1::add_to_linker_sync(linker, |state| {
+    add_to_linker_sync(linker, |state: &mut HostState| {
         state
             .wasi
             .as_mut()
@@ -134,6 +150,23 @@ pub(crate) fn install_wasi(
     })
     .map_err(|error| RuntimeError::Host {
         message: format!("cannot register WASI for the guest: {error}"),
+    })
+}
+
+/// Registers WASI in the component linker, but only when the policy granted it.
+///
+/// Uses wasmtime_wasi::p2 which provides the sync API for component model WASI.
+/// When it did not, the guest's WASI imports have no provider at all.
+pub(crate) fn install_wasi_for_component(
+    linker: &mut ComponentLinker<HostState>,
+    policy: &RuntimePolicy,
+) -> Result<(), RuntimeError> {
+    if !policy.wasi_enabled() {
+        return Ok(());
+    }
+
+    add_wasi_p2_to_linker_sync(linker).map_err(|error| RuntimeError::Host {
+        message: format!("cannot register WASI for the component: {error}"),
     })
 }
 

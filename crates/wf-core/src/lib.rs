@@ -92,6 +92,7 @@ mod graph;
 mod manifest;
 mod matching;
 mod name_error;
+mod plugin;
 mod policy;
 mod toolchain;
 
@@ -109,5 +110,6 @@ pub use matching::{
     resolve_module,
 };
 pub use name_error::NameError;
+pub use plugin::{Plugin, PluginCapability, PluginConfig, PluginManifest};
 pub use policy::{ExecutionLimits, FilesystemAccess, Mount, RuntimePolicy};
 pub use toolchain::{GuestTarget, ToolchainId};

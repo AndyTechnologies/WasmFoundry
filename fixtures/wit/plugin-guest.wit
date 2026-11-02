@@ -1,0 +1,38 @@
+package wf:plugin;
+
+interface guest {
+    /// Initialize the plugin with configuration (JSON string).
+    init(config: string) -> result<(), string>;
+
+    /// Called before each build.
+    pre-build(context: build-context) -> result<(), string>;
+
+    /// Called after each build.
+    post-build(context: build-context, result: build-result) -> result<(), string>;
+
+    /// Transform a module's bytes (e.g., instrumentation, optimization).
+    transform-module(module: module-info, bytes: list<u8>) -> result<list<u8>, string>;
+}
+
+record build-context {
+    project-root: string,
+    target-dir: string,
+    manifest: string,
+}
+
+record build-result {
+    success: bool,
+    modules: list<module-info>,
+    duration-ms: u64,
+}
+
+record module-info {
+    name: string,
+    kind: module-kind,
+    path: string,
+}
+
+enum module-kind {
+    core-module,
+    component,
+}

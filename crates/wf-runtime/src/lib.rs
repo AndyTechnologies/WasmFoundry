@@ -50,11 +50,16 @@
 
 mod console;
 mod host;
+mod plugin;
 mod policy;
 
 pub use console::console;
 pub use host::{Guest, HostError, HostFunction};
+pub use plugin::{LoadedPlugin as PluginInstance, load_plugin};
 pub use policy::Limit;
+
+#[allow(unused_imports)]
+use crate::plugin::{BuildContext, BuildResult, LoadedPlugin, ModuleInfo, ModuleKind};
 
 use policy::HostState;
 
@@ -465,8 +470,7 @@ impl ComponentRuntime {
 
         // Set up the component linker
         let mut linker: ComponentLinker<HostState> = ComponentLinker::new(&self.engine);
-        // TODO: Add WASI support for components (requires WasiView implementation)
-        // wasmtime_wasi::p3::add_to_linker(&mut linker)?;
+        policy::install_wasi_for_component(&mut linker, &self.policy)?;
         host::install_component(&self.engine, &mut linker, &self.host)?;
 
         // Instantiate the component

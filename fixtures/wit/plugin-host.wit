@@ -1,0 +1,31 @@
+package wf:plugin;
+
+interface host {
+    /// Log a message at the given level.
+    log(level: log-level, message: string);
+
+    /// Read a file from the project (capability-gated).
+    read-file(path: string) -> result<string, string>;
+
+    /// Write a file to the project (capability-gated).
+    write-file(path: string, content: string) -> result<(), string>;
+
+    /// Run a command (capability-gated, dangerous).
+    run-command(cmd: string, args: list<string>) -> result<string, string>;
+
+    /// Get the project root directory.
+    project-root() -> string;
+
+    /// Get the target directory.
+    target-dir() -> string;
+
+    /// Get the manifest as JSON string.
+    manifest() -> string;
+}
+
+enum log-level {
+    debug,
+    info,
+    warn,
+    error,
+}

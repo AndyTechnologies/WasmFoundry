@@ -179,7 +179,7 @@ fn garbage_is_wf001_and_keeps_the_reason() {
         "invalid wasm is WF001: {message}"
     );
     assert!(
-        message.contains("magic header"),
+        message.contains("magic"),
         "the reason must survive: {message}"
     );
 

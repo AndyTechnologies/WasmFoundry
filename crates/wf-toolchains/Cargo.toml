@@ -3,6 +3,7 @@ name = "wf-toolchains"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 
 # PHASE 10: the plan (`plan.md` #61) creates this crate when the toolchain surface
 # grows its dependency reach (clang, sysroots). `wf-cli` keeps only parsing and

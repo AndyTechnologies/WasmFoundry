@@ -44,6 +44,8 @@ pub enum Command {
     Wit(WitArgs),
     /// Build a WebAssembly component.
     Component(ComponentArgs),
+    /// Manage plugins (initialize, build).
+    Plugin(PluginArgs),
 }
 
 /// Arguments of `wf inspect`.
@@ -127,6 +129,38 @@ pub struct ComponentArgs {
     pub command: ComponentCommand,
 }
 
+/// Arguments of `wf plugin`.
+#[derive(Debug, clap::Args)]
+pub struct PluginArgs {
+    #[command(subcommand)]
+    pub command: PluginCommand,
+}
+
+/// Subcommands of `wf plugin`.
+#[derive(Debug, Subcommand)]
+pub enum PluginCommand {
+    /// Initialize a new plugin project.
+    Init(PluginInitArgs),
+    /// Build a plugin component.
+    Build(PluginBuildArgs),
+}
+
+/// Arguments of `wf plugin init`.
+#[derive(Debug, clap::Args)]
+pub struct PluginInitArgs {
+    /// Name of the plugin to create, and of its directory.
+    #[arg(value_name = "NAME")]
+    pub name: String,
+}
+
+/// Arguments of `wf plugin build`.
+#[derive(Debug, clap::Args)]
+pub struct PluginBuildArgs {
+    /// Path to the plugin project directory (containing Cargo.toml and .wit).
+    #[arg(value_name = "DIR")]
+    pub dir: Option<std::path::PathBuf>,
+}
+
 /// Subcommands of `wf component`.
 #[derive(Debug, Subcommand)]
 pub enum ComponentCommand {
@@ -173,6 +207,10 @@ pub fn run() -> i32 {
         },
         Some(Command::Component(args)) => match args.command {
             crate::cli::ComponentCommand::Build(args) => crate::component::run(&args),
+        },
+        Some(Command::Plugin(args)) => match args.command {
+            crate::cli::PluginCommand::Init(args) => crate::plugin::init(&args),
+            crate::cli::PluginCommand::Build(args) => crate::plugin::build(&args),
         },
     }
 }

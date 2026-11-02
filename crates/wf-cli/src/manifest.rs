@@ -26,6 +26,8 @@ struct ManifestFile {
     project: ProjectFile,
     #[serde(default)]
     module: Vec<ModuleFile>,
+    #[serde(default)]
+    plugin: Vec<PluginFile>,
     /// Directories the guest may see. Denied unless a project asks for them.
     #[serde(default)]
     r#mount: Vec<MountFile>,
@@ -89,6 +91,17 @@ struct ModuleFile {
     /// rather than have it derived from the file name or the declared name.
     #[serde(default)]
     namespace: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PluginFile {
+    name: String,
+    path: String,
+    #[serde(default)]
+    capabilities: Option<Vec<String>>,
+    #[serde(default)]
+    config: Option<String>,
 }
 
 /// Reads and parses a manifest file.
@@ -190,6 +203,27 @@ pub fn parse(text: &str) -> Result<Manifest, Diagnostic> {
                 namespace: module.namespace,
             })
             .collect(),
+        plugins: file
+            .plugin
+            .into_iter()
+            .map(|plugin| {
+                let name = plugin.name.clone();
+                let manifest = wf_core::PluginManifest {
+                    name: plugin.name,
+                    path: plugin.path,
+                    capabilities: plugin.capabilities,
+                    config: plugin.config,
+                };
+                manifest.into_config().map_err(|e| {
+                    Diagnostic::new(
+                        DiagnosticCode::InvalidManifest,
+                        Severity::Error,
+                        format!("plugin `{}`: {e}", name),
+                    )
+                    .with_help("check the plugin's capabilities in wasmfoundry.toml")
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 

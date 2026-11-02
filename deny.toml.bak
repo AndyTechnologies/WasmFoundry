@@ -1,0 +1,76 @@
+# WasmFoundry supply chain policy
+#
+# This file configures `cargo-deny` to enforce license compliance, detect
+# duplicate dependencies, check for security advisories, and restrict
+# dependency sources.
+#
+# Run locally: `cargo deny check`
+# See: https://github.com/EmbarkStudios/cargo-deny
+
+[advisories]
+# Use the RustSec advisory database
+db = "https://github.com/RustSec/advisory-db.git"
+# Path to a local clone (optional, for offline use)
+# db-path = "~/.cargo/advisory-db"
+# Ignore specific advisories by ID if they are false positives for our use case
+# ignore = ["RUSTSEC-XXXX-XXXX"]
+# Treat unmaintained crates as warnings (not errors)
+unmaintained = "warn"
+# Treat yanked crates as warnings
+yanked = "warn"
+# Treat informational advisories as warnings
+informational = "warn"
+
+[licenses]
+# Allowlist of acceptable license identifiers (SPDX)
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+# Denylist of unacceptable licenses
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-3.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+]
+# Allow crates that don't specify a license (treat as warning)
+unlicensed = "warn"
+# Allow crates with non-SPDX license expressions if they contain allowed licenses
+allow-non-spdx = false
+# Confidence threshold for license detection (0.0 to 1.0)
+confidence-threshold = 0.8
+
+[duplicates]
+# Allow multiple versions of the same crate if they are semver-compatible
+# Set to "deny" to reject any duplicate
+strategy = "allow-semver-compatible"
+# Warn about duplicates even when allowed
+warn = true
+
+[sources]
+# Only allow crates from crates.io (the default registry)
+allow-registry = ["crates-io"]
+# Disallow git dependencies (require them to be published to crates.io)
+allow-git = false
+# Allow local path dependencies (for workspace members)
+allow-path = true
+# Disallow dependencies from other registries
+allow-other = false
+
+[workspace]
+# The workspace to check (defaults to current directory)
+path = "."
+# Include all workspace members
+members = ["crates/*"]
+# Exclude specific members if needed
+# exclude = ["crates/some-crate"]
