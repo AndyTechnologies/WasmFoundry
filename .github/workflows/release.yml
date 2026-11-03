@@ -174,8 +174,8 @@ jobs:
           name: WasmFoundry ${{ steps.version.outputs.version }}
           body_path: dist/CHANGELOG.md
           files: |
-            dist/wf-launcher-*
-            dist/wf-launcher-*.sha256
+            dist/wf-launcher*
+            dist/wf-launcher*.sha256
             dist/checksums.sha256
             dist/sbom.cdx.json
           draft: false
