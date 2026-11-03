@@ -96,12 +96,14 @@ jobs:
           fi
       
       - name: Copy artifact
+        shell: bash
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ steps.output.outputs.name }} \
              dist/${{ steps.output.outputs.name }}-${{ matrix.target }}
-      
+     
       - name: Generate checksum
+        shell: bash
         run: |
           sha256sum dist/${{ steps.output.outputs.name }}-${{ matrix.target }} \
             > dist/${{ steps.output.outputs.name }}-${{ matrix.target }}.sha256
