@@ -148,7 +148,7 @@ jobs:
         id: sbom
         run: |
           cargo install cargo-sbom --locked
-          cargo sbom --format=cyclonedx-json --output=dist/sbom.cdx.json
+          cargo sbom --output-format=cyclone_dx_json_1_6 > dist/sbom.cdx.json
           echo "sbom_path=dist/sbom.cdx.json" >> $GITHUB_OUTPUT
       
       - name: Extract version from tag
