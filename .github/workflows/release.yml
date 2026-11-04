@@ -201,7 +201,10 @@ jobs:
         run: |
           cd dist
           for f in wf-launcher*.sha256; do
-            sha256sum -c "$f" || exit 1
+            # checksum files contain paths like 'dist/wf-launcher-...', but files are in ./wf-launcher-...
+            # strip 'dist/' prefix from the checksum file before verifying
+            sed 's|^dist/||' "$f" > "$f.fixed"
+            sha256sum -c "$f.fixed" || exit 1
           done
       
       - name: Test Linux launchers (native)
