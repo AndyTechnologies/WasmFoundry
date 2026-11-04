@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 # Floor imposed by wasmtime 49.0.1 (its `rust_version` is 1.96.0). The pinned
 # toolchain in rust-toolchain.toml is 1.98.1; the MSRV stays lower on purpose.
@@ -65,8 +65,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Internal crates, path based so the workspace always builds the local code.
-wf-core = { path = "crates/wf-core", version = "0.1.0" }
-wf-wasm = { path = "crates/wf-wasm", version = "0.1.0" }
-wf-runtime = { path = "crates/wf-runtime", version = "0.1.0" }
-wf-toolchains = { path = "crates/wf-toolchains", version = "0.1.0" }
-wf-bundle = { path = "crates/wf-bundle", version = "0.1.0" }
+wf-core = { path = "crates/wf-core", version = "0.2.0" }
+wf-wasm = { path = "crates/wf-wasm", version = "0.2.0" }
+wf-runtime = { path = "crates/wf-runtime", version = "0.2.0" }
+wf-toolchains = { path = "crates/wf-toolchains", version = "0.2.0" }
+wf-bundle = { path = "crates/wf-bundle", version = "0.2.0" }
