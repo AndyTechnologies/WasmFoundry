@@ -6,6 +6,9 @@ name: Toolchains
   pull_request:
     branches:
     - main
+concurrency:
+  group: toolchains-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 env:

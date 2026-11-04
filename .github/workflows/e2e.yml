@@ -6,6 +6,9 @@ name: E2E
   pull_request:
     branches:
     - main
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 env:
