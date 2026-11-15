@@ -1,0 +1,23 @@
+# WasmFoundry Release Configuration
+#
+# Configuration for cargo-release to automate releases.
+# This complements `.github/workflows/release.yml` which handles the actual release process.
+
+[build]
+tag-name = "v$version"
+tag-prefix = "v"
+prerelease = false
+sign = false
+changelog = "dist/CHANGELOG.md"
+change = ""
+commit = true
+push = true
+ask = false
+draft = false
+
+[hooks]
+post_release = "echo 'WasmFoundry v$version released successfully'"
+
+[metadata]
+registry = "https://github.com/$GITHUB_REPOSITORY/api/v2/package"
+token = "$GITHUB_TOKEN"

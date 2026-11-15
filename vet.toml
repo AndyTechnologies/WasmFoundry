@@ -1,0 +1,40 @@
+# WasmFoundry cargo-vet configuration
+#
+# This file configures `cargo-vet` to verify that all dependencies have been
+# audited by trusted parties. It complements `cargo-deny` (which checks licenses,
+# duplicates, and advisories) by adding a web-of-trust audit model.
+#
+# Run locally: `cargo vet check --locked`
+# See: https://github.com/mozilla/cargo-vet
+
+[inherited]
+# Audit sources we trust. The Rust project maintains audits for stdlib and
+# popular crates. We import these via `cargo vet import --source=rust-lang`.
+# Additional sources can be added here (e.g., mozilla, google, etc.).
+sources = [
+    { name = "rust-lang", url = "https://github.com/rust-lang/crates.io-index" },
+]
+
+# Criteria for accepting an audit. We require audits for all dependencies.
+# Criteria can be: "safe-to-deploy", "safe-to-run", etc.
+# For now we use the default "safe-to-deploy" which is the standard.
+criteria = [
+    "safe-to-deploy",
+]
+
+# Exemptions for crates that cannot be audited yet (e.g., very new crates,
+# internal crates, or crates with no audit available).
+# Each exemption must have a justification.
+exemptions = [
+    # Example format:
+    # { crate = "some-crate", version = "1.0.0", justification = "No audit available yet; tracking upstream" },
+]
+
+# Trusted auditors (keys that can sign audits). We inherit from the Rust project.
+# This section is typically auto-populated by `cargo vet import`.
+# [trusted]
+# keys = []
+
+# Local audits (if we audit crates ourselves). Not used currently.
+# [local-audits]
+# path = "audits"

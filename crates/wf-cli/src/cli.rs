@@ -86,6 +86,9 @@ pub struct BuildArgs {
     /// Watch for changes and rebuild automatically.
     #[arg(long)]
     pub watch: bool,
+    /// Emit timing information for build phases.
+    #[arg(long, value_enum, default_value_t = TimingsFormat::None)]
+    pub timings: TimingsFormat,
 }
 
 /// Arguments of `wf bundle`.
@@ -99,6 +102,9 @@ pub struct BundleArgs {
     /// Mutually exclusive with `--launcher`.
     #[arg(long, value_name = "TRIPLE")]
     pub bundle_target: Option<String>,
+    /// Emit timing information for build phases.
+    #[arg(long, value_enum, default_value_t = TimingsFormat::None)]
+    pub timings: TimingsFormat,
 }
 
 /// Arguments of `wf wit`.
@@ -182,6 +188,15 @@ pub enum OutputFormat {
     /// Aligned text for a terminal.
     Human,
     /// Machine-readable JSON.
+    Json,
+}
+
+/// How to render timing information.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum TimingsFormat {
+    /// No timing information.
+    None,
+    /// Emit JSON with build phase timings.
     Json,
 }
 
