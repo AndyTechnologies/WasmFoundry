@@ -218,7 +218,7 @@ jobs:
     - name: Install Node.js and AssemblyScript
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
     - name: Install AssemblyScript
       run: npm install -g assemblyscript
     - name: Cache Cargo registry
