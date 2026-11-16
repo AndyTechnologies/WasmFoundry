@@ -8,7 +8,7 @@ instead of hard-coded branches, resolves imports between modules itself instead 
 generating C++, and runs guests under an explicit capability policy instead of an
 implicitly permissive host.
 
-> **Status: `v0.1.0` released.** All core features implemented through PHASE 21.
+> **Status: `v0.3.1` released.** All core features implemented through PHASE 21.
 > See [Status](#status) for the complete phase list.
 
 ---
@@ -359,3 +359,21 @@ arrives with the capability policy in PHASE 9.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+## Stability & Reliability Improvements (post v0.2.0)
+
+This release (v0.3.0, patch v0.3.1) introduces hardened production readiness:
+
+- **S1 Supply chain hardening**: `cargo-deny`, `cargo-vet`, and `cargo-audit` verified in CI
+- **S2 Reproducible builds forced**: `--locked`, `CARGO_NET_RETRY=3`, `SOURCE_DATE_EPOCH` in all workflows
+- **S3 E2E matrix**: Expanded matrix (toolchain × target × feature × OS) + nightly/weekly schedule
+- **S4 JSON output**: `--format json` on `wf build`, `wf run`, `wf bundle`
+- **S5 Capability-based sandbox**: `--sandbox` flag: WASI caps, seccomp (Linux), Job Objects (Windows)
+- **S6 Self-hosting bootstrap**: `wf bootstrap` compiles CLI to WASM + bundle → auto-hospedado `wf`
+- **S7 Release automation**: `cargo-release` + conventional commits changelog
+- **S8 Build profiling**: `--timings` flag emits JSON with build phase timings
+- **S9 Cross-OS E2E matrix**: `ubuntu-latest`, `macos-latest`, `windows-latest` runners
+- **S10 Public contract docs**: `docs/toolchain-protocol.md` (adapter interface), `docs/bundle-format-v1.md` (ABNF spec)
+
+See [AGENTS.md](AGENTS.md) for operating instructions, and [odd/tasks/stability-reliability-improvements.md](odd/tasks/stability-reliability-improvements.md) for the full task tracking.
+
+---
