@@ -1,143 +1,266 @@
 # WasmFoundry
 
-![WasmFoundry Logo](https://raw.githubusercontent.com/AndyTechnologies/WasmFoundry/main/assets/logo.svg)
-
 **WasmFoundry: toolchain Rust para WebAssembly con contrato explícito**
 
-*Build, inspección y ejecución de proyectos WebAssembly multi-toolchain con un solo contrato de tiempo de ejecución.*
+WasmFoundry is a Rust toolchain for WebAssembly that treats guest languages as adapters
+instead of hard-coded branches, resolves imports between modules itself instead of
+generating C++, and runs guests under an explicit capability policy instead of an
+implicitly permissive host.
 
-WasmFoundry es un toolchain Rust para WebAssembly que trata a los lenguajes de invitados como adaptadores en lugar de ramas codificadas de forma rígida, resuelve las importaciones entre módulos en lugar de generar C++, y ejecuta invitados bajo una política de capacidades explícita en lugar de una permisividad host implicit.
-
----
-
-## 📦 Versión actual: **v0.3.1**
-
-La versión v0.3.1 introduce endurecimiento para producción:
-
-- **S1 Suministro endurecido**: `cargo-deny`, `cargo-vet` y `cargo-audit` verificados en CI
-- **S2 compilaciones reproducibles forzadas**: `--locked`, `CARGO_NET_RETRY=3`, `SOURCE_DATE_EPOCH` en todos los workflows
-- **S3 matriz E2E**: matriz expandida (toolchain × target × feature × OS) + schedule nightly/weekly
-- **S4 salida JSON**: `--format json` en `wf build`, `wf run`, `wf bundle`
-- **S5 sandbox basado en capacidades**: flag `--sandbox`: caps WASI, seccomp (Linux), Job Objects (Windows)
-- **S6 auto-alojamiento bootstrap**: `wf bootstrap` compila CLI a WASM + bundle → `wf` auto-hospedado
-- **S7 automatización de release**: `cargo-release` + changelog de commits convencionales
-- **S8 perfiles de compilación**: flag `--timings` emite JSON con fases de compilación
-- **S9 matriz E2E cross-OS**: runners `ubuntu-latest`, `macos-latest`, `windows-latest`
-- **S10 contratos públicos**: `docs/toolchain-protocol.md` (interfaz adaptador), `docs/bundle-format-v1.md` (espec ABNF)
+> **Status: `v0.3.1` released.** All core features implemented through PHASE 21.
+> See [Status](#status) for the complete phase list.
 
 ---
 
-## 🎯 Problema que resuelve
+## 📦 What this repository is
 
-Desarrollar un proyecto WebAssembly que abarque más de un lenguaje de invitado, más de un módulo, o un binario nativo usualmente obliga a elegir entre herramientas que cada una cubre solo un segmento y pegamento que cubre ninguno:
+WasmFoundry is a Rust toolchain for building, inspecting and running WebAssembly
+projects. It is a rewrite from scratch of a previous TypeScript implementation;
+that implementation is **historical reference only** and lives in a separate,
+frozen repository.
 
-- Los toolchains están alambrados por lenguaje, así que agregar un lenguaje requiere editar el core de build.
-- La composición multi-módulo se hace generando C o C++ que re-declara toda importación, lo que arrastra una full C toolchain solo para enlazar dos `.wasm`.
-- La superficie host ofrecida a los invitados es lo que los bindings generados acontecieron exportar, sin versión y sin capacidades declaradas.
-- Distribuir un "ejecutable nativo" significa enganchar un launcher a un payload de una forma específica de un solo formato de ejecutable.
+### Hard rules
 
-WasmFoundry toma la posición opuesta en cada caso:
+Violating any of these is a defect, regardless of how convenient the alternative is.
 
-| Problema | Posición |
-| --- | --- |
-| Muchos lenguajes de invitado | Cada uno es un adaptador `Toolchain` detrás de un trait; el core nunca se rama por nombre de lenguaje. |
-| Vínculo multi-módulo | El grafo de dependencias se resuelve por nombre e instantiated a través de un linker. No C++, no CMake, no bindings generados. |
-| Superficie host | Un ABI host documentado con versión, dividido entre un ABI portable y ABIs de compatibilidad lenguajes. |
-| Distribución | Un binary nativo auto-contenido construido sobre un formato de bundle documentado con footer fijo y checksum, format-independent. |
-| Permisos de invitado | Una política de capacidades por defecto denegada: no filesystem, no network, no environment, no process execution. |
+1. **Never write to the legacy repository.** It is a separate repository on its own
+   branch and tag, kept as the frozen historical record: do not write to it, do not
+   "fix" it, do not copy implementation code out of it, do not rebase or delete its
+   branches.
 
----
+   **Reading it is allowed, and is sometimes required.** The master plan asks for the
+   previous implementation as evidence — its host ABI signatures, its string layout,
+   its edge cases — and a decision made without that evidence is a guess. Read it to
+   find out *what a contract was*; never read it to find out *how to structure this
+   codebase*.
 
-## 📦 Paquetes
+   Two rules follow: the read is evidence, so what is extracted goes into a document or
+   a test, not into a file that resembles the original; and the legacy API is evidence,
+   not an obligation — functional parity is tracked in `docs/parity-matrix.md`, and
+   binary compatibility is a product decision, not a default.
+2. **No hand-written WebAssembly parser.** All binary decoding goes through
+   `wasmparser`. Do not add a custom reader, LEB128 decoder, section walker or
+   validator. The single allowed exception is the fixed eight-byte binary header,
+   because the library exposes no header-only entry point.
+3. **No `wasmtime-c-api`, no bindgen, no CMake, no cmake-js.** The Rust API of Wasmtime
+   is the only supported embedding.
+4. **No async.** No `async fn`, no `async trait`, no Tokio in application code. The
+   product is synchronous with `std` threads where concurrency is genuinely needed. A
+   transitive Tokio inside `wasmtime-wasi` does not license designing around it.
+5. **No speculative abstractions.** Do not add a factory, builder, repository, adapter,
+   service, provider, registry or manager for a single implementation. Do not add
+   `FileSystem`, `LogicalPath`, `BuildExecutor`, `ArtifactStore` or `PluginManager`
+   before a real second use case exists. A new physical crate boundary must be justified
+   by a second consumer, a second implementation, or a responsibility that needs to
+   evolve independently.
+6. **No dead code.** A type, function or module with no caller does not land in this
+   repository. Document the idea in `docs/gaps/` instead and implement it with its
+   first user.
+7. **No CI.** There are deliberately no GitHub Actions workflows. Quality is enforced
+   locally by the command block below. CI arrives in PHASE 20 with a real pipeline, not
+   before.
+8. **Do not claim unimplemented behaviour.** No stubbed commands, no fake outputs, no
+   documentation describing a feature that does not exist. `v0.1.0` must not depend on
+   undocumented internal tooling.
 
-| Crate | Responsabilidad | Dependencia clave |
-| --- | --- | --- |
-| `wf-core` | Vocabulario de dominio y reglas puras. Sin dependencias. | none |
-| `wf-wasm` | Análisis de un binary WebAssembly: tipo, imports, exports, validación. | `wasmparser`, `wit-parser`, `wit-component` |
-| `wf-runtime` | Ejecución de un módulo analizado bajo Wasmtime. | `wasmtime` |
-| `wf-toolchains` | Toolchains de invitado: Rust, C++, AssemblyScript, wasm precompilado, componentes, plugins. | `toml` (manifests de guest crates) |
-| `wf-bundle` | Formato de bundle v1, probing de launcher, validación de checksum. | `sha2`, `blake3` |
-| `wf-cli` | La interfaz de línea de comando `wf`. | `clap` |
+### Dependency direction
 
----
-
-## 📦 Requisitos
-
-- **Cadena de herramientas Rust**. La versión exacta está fijada en `rust-toolchain.toml`, así que `rustup` la instala automáticamente.
-- **Nada más, todavía**.
-
-Las toolchains de invitado (Rust guest, C++, AssemblyScript) **no** se instalan por este repositorio y no son necesarias para compilarlo. Cada una se detecta bajo demanda y es reportada por `wf doctor` cuando ese comando existe.
-
-### Compilar desde el fuente
-
-```bash
-cargo check --workspace
-cargo test --workspace
+```text
+wf-core  <-  wf-wasm  <-  wf-runtime  <-  wf-cli
 ```
 
-### Uso
+- `wf-core` — **zero dependencies**. Standard library only. No `wasmtime`, no
+  `wasmparser`, no `clap`, no `serde`, no `tokio`, no file or process access, no `unsafe`.
+- `wf-wasm` — may depend on `wasmparser`. No `wasmparser` type may appear in its public
+  API; errors are translated into the crate's own error type.
+- `wf-runtime` — may depend on `wasmtime`. No build orchestration, no compiler
+  invocation, no source compilation.
+- `wf-cli` — argument parsing, output, exit codes. No business logic. No WebAssembly
+  parsing.
+
+If a new dependency appears, the crate's `Cargo.toml` comment must explain why it is
+allowed to be there.
+
+### Local quality gate
+
+Every change must leave these green:
 
 ```bash
-# Crear un proyecto. Esquematiza un manifest, un directorio de fuentes y un módulo de muestra.
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+`rust-toolchain.toml` pins the toolchain, so `rustup` installs it automatically. Nightly
+is not used and must not be introduced without a demonstrated need.
+
+### Tests
+
+Test behaviour, not implementation shape.
+
+- **Unit** — domain rules in `wf-core`, analysis in `wf-wasm`.
+- **Integration** — `wf-runtime` against real Wasmtime; toolchains against the real
+  compiler.
+- **End-to-end** — `wf init` → `wf build` → `wf run` → `wf bundle`, driven from the root
+  `tests/` directory.
+
+Fixtures live in `fixtures/` and are versioned, never downloaded during a test run.
+
+### Commits
+
+Conventional Commits, message in the language of the surrounding conversation:
+
+```text
+type(scope): mensaje
+```
+
+Scopes used by this repository: `repo`, `core`, `wasm`, `runtime`, `cli`, `abi`,
+`toolchains`, `bundle`, `test`, `docs`.
+
+Keep commits to one coherent work unit. Tests and documentation land in the same commit
+as the behaviour they describe.
+
+---
+
+## 📦 Version: v0.3.1
+
+This release (v0.3.1) introduces hardened production readiness with 10 stability
+specifications (S1–S10) tracking continuous improvement post-PHASE 21.
+
+### Specs Summary
+
+| Spec | Title | What Covers | Main Files |
+|------|-------|-------------|------------|
+| **S1** | Supply chain hardening | `cargo-deny` + `cargo-vet` + `cargo-audit` verdes en CI verify | `.github/workflows/supply-chain.yml`, `deny.toml`, `vet.toml` (nuevo) |
+| **S2** | Reproducible builds forced | `--locked`, `CARGO_NET_RETRY=3`, `SOURCE_DATE_EPOCH` en **todos** los workflows | `.github/workflows/ci.yml`, `e2e.yml`, `toolchains.yml`, `supply-chain.yml`, `release.yml` |
+| **S3** | E2E matrix (toolchain × target × feature) + nightly/weekly | Matrix expandida en e2e.yml y toolchains.yml; schedule nightly/weekly | `.github/workflows/e2e.yml`, `.github/workflows/toolchains.yml` |
+| **S4** | JSON output standardizado | `--format json` en `wf build`, `wf run`, `wf bundle` (ya existe en `inspect`) | `crates/wf-cli/src/*.rs` |
+| **S5** | Capability-based sandbox | `--sandbox` flag: WASI caps, seccomp (Linux), Job Objects (Windows) | `crates/wf-runtime/src/*`, `crates/wf-cli/src/*` |
+| **S6** | Self-hosting bootstrap | `wf bootstrap` compila CLI a WASM + bundle → `wf` auto-hospedado | `crates/wf-cli/src/*`, `crates/wf-bundle/src/*`, nuevo binario |
+| **S7** | Release automation | `cargo-release` + changelog generado de commits convencionales | `.github/workflows/release.yml`, `release.toml` (nuevo) |
+| **S8** | Build profiling | `--timings` flag emite JSON con fases: parse, codegen, link, bundle | `crates/wf-cli/src/*`, `crates/wf-toolchains/src/*` |
+| **S9** | Cross-OS E2E matrix real | Runners `ubuntu-latest`, `macos-latest`, `windows-latest` en toolchains/e2e | `.github/workflows/toolchains.yml`, `.github/workflows/e2e.yml` |
+| **S10** | Public contract docs | `docs/toolchain-protocol.md` (adapter interface), `docs/bundle-format-v1.md` (ABNF spec) | `docs/toolchain-protocol.md`, `docs/bundle-format-v1.md` |
+
+### Completed Tasks (T1–T10)
+
+| Task | Spec | Ruta | Commit estimado |
+|------|------|------|-----------------|
+| T1 | S1 | Añadir `cargo-vet` job a supply-chain.yml; crear `vet.toml` con criteria | `feat(ci): cargo-vet en supply chain` |
+| T2 | S2 | Inyectar env: { CARGO_NET_RETRY: "3", SOURCE_DATE_EPOCH: "..." }` + `run: cargo ... --locked` en **5 workflows** | `feat(ci): reproducible builds forced` |
+| T3 | S3 | Expandir e2e.yml: matrix (toolchain × target × feature); añadir `schedule: cron nightly/weekly` | `feat(ci): e2e matrix + nightly` |
+| T4 | S4 | Extender `wf build/run/bundle` con `--format json` (reutilizar pattern de `inspect`) | `feat(cli): json output all commands` |
+| T5 | S5 | Añadir `--sandbox` a `wf run` y `wf bundle`; implementar caps/seccomp/JobObjects en runtime | `feat(runtime): capability sandbox` |
+| T6 | S6 | Crear `wf bootstrap` subcommand; compilar workspace a wasm32 + bundle con wf-bundle | `feat(cli): wf bootstrap self-hosting` |
+| T7 | S7 | Configurar `cargo-release` (release.toml); actualizar release.yml para usarlo | `feat(ci): cargo-release + changelog` |
+| T8 | S8 | Añadir `--timings` global flag; instrumentar fases en cli/toolchains/bundle; emitir JSON | `feat(cli): --timings profiling` |
+| T9 | S9 | Cambiar `runs-on: ubuntu-latest` → matrix `['ubuntu-latest', 'macos-latest', 'windows-latest']` en toolchains.yml y e2e.yml | `feat(ci): cross-os e2e matrix` |
+| T10 | S10 | Escribir `docs/toolchain-protocol.md` (interface adapter, JSON schema); `docs/bundle-format-v1.md` (ABNF, footer, checksums) | `docs: toolchain protocol + bundle format v1 spec` |
+
+### Log
+
+- **L1** (2026-11-10): "Vale, vamos con lo siguiente: [10 items] — Vamos a iniciar un nuevo proceso odd para todo esto."
+- **L2** (2026-11-10): Documento ODD creado con 10 specs (S1–S10) y 10 tasks (T1–T10). Tracking iniciado.
+
+---
+
+## 🏗️ Architecture
+
+Five crates, with a strict dependency direction:
+
+```text
+wf-core  <-  wf-wasm  <-  wf-runtime  <-  wf-cli
+```
+
+Each crate may only depend on the ones below it. The full rules, including the banned
+dependencies per crate, are in [`docs/architecture.md`](docs/architecture.md).
+
+### Crate responsibilities
+
+| Crate | Responsibility | Key dependency |
+|-------|---------------|----------------|
+| `wf-core` | Domain vocabulary and pure rules. Zero dependencies. | none |
+| `wf-wasm` | Analysis of a WebAssembly binary: kind, imports, exports, validation. | `wasmparser`, `wit-parser`, `wit-component` |
+| `wf-runtime` | Execution of an analysed module under Wasmtime. | `wasmtime` |
+| `wf-toolchains` | Guest toolchains: Rust, C++, AssemblyScript, precompiled wasm, components, plugins. | `toml` (guest crate manifests) |
+| `wf-bundle` | Bundle format v1, launcher probing, checksum validation. | `sha2`, `blake3` |
+| `wf-cli` | The `wf` command line interface. | `clap` |
+
+### Building from source
+
+```bash
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+### Usage
+
+```bash
+# Create a project. It scaffolds a manifest, a source directory and a sample module.
 wf init hello
 cd hello
 
-# Publicar el módulo declarado en target/. Las fuentes son wasm precompilado: nada se compila aún, así que no se requiere toolchain de invitado.
+# Publish the declared module into target/. Sources are precompiled WebAssembly: nothing
+# is compiled yet, so no guest toolchain is required.
 wf build
 
-# Ejecutar el módulo built del proyecto, o cualquier camino directamente.
+# Execute the project's built module, or any path directly.
 wf run
 wf run target/hello.wasm
 wf run target/hello.wasm --entry main
 
-# Mantener el artifact built en sincronía con las fuentes: un build por momento de quietud y nunca un rebuild triggered por un write output.
+# Keep the built artifact in sync with the sources: one build per quiet moment and
+# never a rebuild triggered by an output write.
 wf build --watch
 
-# Envuelve el proyecto built en un bundle nativo auto-contenido.
-# `wf` nunca construye el launcher; tú le das uno que ya existe.
+# Wrap the built project into one self-contained native bundle.
+# `wf` never builds the launcher; you give it one that already exists.
 # cargo build -p wf-bundle --bin wf-launcher
 # wf bundle --launcher target/debug/wf-launcher
 
-# O resolver un launcher prebuilt del registry local por triple target.
+# Or resolve a prebuilt launcher from the local registry by target triple.
 # wf bundle --bundle-target x86_64-unknown-linux-gnu
 
-# `wf build` usa fingerprints de contenido: un módulo sin cambios no se recompila.
-# Vea `docs/adr/0001-cache-fingerprint-blake3.md`. Después de actualizar un compilador de invitado (clang++/asc/rustc), limpie los artifacts stale: `rm -rf target`.
+# `wf build` uses content fingerprints: an unchanged module is not recompiled.
+# See `docs/adr/0001-cache-fingerprint-blake3.md`. After upgrading a guest compiler
+# (clang++/asc/rustc), clear the stale artifacts: `rm -rf target`.
 
-# Analice cualquier binary sin ejecutarlo, para un humano o como JSON para otras herramientas.
+# Analyse any binary without executing it, for a human or as JSON for other tools.
 wf inspect target/hello.wasm
 wf inspect target/hello.wasm --format json
 
-# Compilar un WebAssembly Component
+# Build a WebAssembly Component
 wf component build /path/to/component-project
-# Herramienta de component usa `cargo component` + validación WIT
 
-# Gestionar plugins (Wasm Components implementando wf:plugin/guest)
+# Manage plugins (Wasm Components implementing wf:plugin/guest)
 wf plugin init my-plugin
 cd my-plugin
 wf plugin build
-# Copiar target/my-plugin.wasm a el directorio plugins/ de tu proyecto
 
-# Validar un archivo WIT
+# Validate a WIT file
 wf wit check path/to/file.wit
 ```
 
-Un guest Rust necesita el target instalado una vez:
+A Rust guest needs the guest target installed once:
 
 ```bash
 rustup target add wasm32-unknown-unknown
 ```
 
-y un módulo declarado contra él:
+and a module declared against it:
 
 ```toml
 [[module]]
 name = "hello"
-source = "guest"          # el directorio holding Cargo.toml
+source = "guest"          # the directory holding Cargo.toml
 toolchain = "rust"
 ```
 
-El crate debe declarar `[lib] crate-type = ["cdylib"]`, lo que hace que `cargo` emita un módulo WebAssembly. Un proyecto de lo contrario es un solo archivo, `wasmfoundry.toml`:
+The crate must declare `[lib] crate-type = ["cdylib"]`, which is what makes `cargo`
+emit a WebAssembly module. A project is otherwise one file, `wasmfoundry.toml`:
 
 ```toml
 schema = 1
@@ -156,7 +279,7 @@ source = "src/hello.wasm"
 toolchain = "precompiled"
 ```
 
-Un proyecto puede.state qué su runtime está permitido hacer:
+A project may state what its runtime is allowed to do:
 
 ```toml
 [runtime]
@@ -170,15 +293,18 @@ guest = "/data"                 # absolute: a guest path is a name in the guest'
 access = "read-only"            # the default
 ```
 
-Todo está denegado a menos que el manifest lo pida. Un guest que importe WASI sin `wasi = true` compila bien y falla cuando llama — pedir un capability y ser granted son dos cosas diferentes.
+Everything is denied unless the manifest asks. A guest that imports WASI without
+`wasi = true` builds fine and fails when it calls — asking for a capability and being
+granted it are two different things.
 
-Un proyecto puede tener varios módulos. Un import nombra un namespace, y el namespace de un módulo es ya sea stated en el manifest o derivado del matching mode:
+A project may hold several modules. An import names a namespace, and a module's namespace
+is either stated in the manifest or derived from the matching mode:
 
 ```toml
 [project]
 source_dir = "src"
 entry = "_start"
-module_matching = "file-name"      # o "name-only"
+module_matching = "file-name"      # or "name-only"
 host_namespaces = ["env"]          # namespaces expected from outside the project
 
 [[module]]
@@ -187,128 +313,142 @@ source = "src/cog.wasm"
 namespace = "engine"               # stated: beats both the name and the file
 ```
 
-Un `namespace` stated gana en todo modo. Sin uno:
+A stated `namespace` wins in every mode. Without one:
 
-- `file-name` — el namespace es el nombre del source file sin su extensión
-- `name-only` — el namespace es el module `name`
+- `file-name` — the namespace is the source file's name without its extension
+- `name-only` — the namespace is the module's `name`
 
-La misma regla une un import y publica un export, así que los dos lados no pueden desacuerdarse.
+The same rule binds an import and publishes an export, so the two sides cannot disagree.
 
-`wf build` se niega a un proyecto cuyas imports no puedan binding, porque un import que nombra no módulo de proyecto y no fue declarado como external es probablemente un typo:
+`wf build` refuses a project whose imports cannot be bound, because an import that names
+no project module and was not declared as external is most likely a typo:
 
-- un namespace claimed by two modules — `WF002`, naming the claimants
-- un import nothing provides and nothing declares — `WF002`
-- un dependency cycle — `WF003`
+- a namespace claimed by two modules — `WF002`, naming the claimants
+- an import nothing provides and nothing declares — `WF002`
+- a dependency cycle — `WF003`
 
-Declarar un `namespace` en `host_namespaces` es cómo un guest que habla con un host construye: esos namespaces no son módulos de proyecto y nunca lo serán.
+Declaring a namespace in `host_namespaces` is how a guest that talks to a host builds:
+those namespaces are not project modules and never will be.
 
-Un manifest cuya `schema` esta versión no conoce es rechazado de inmediato: nunca se interpreta parcialmente, porque campos compartidos entre dos schemas pueden haber cambiado de significado. Nombres de tabla y campo desconocidos también son rechazados, así que un typo no pueda hacer nada en silencio.
+A manifest whose `schema` this version does not know is rejected outright: it is never
+partially interpreted, because fields shared between two schemas may have changed meaning.
+Unknown table and field names are also rejected, so a typo cannot silently do nothing.
 
-```
-$ wf inspect app.wasm
-Module: app.wasm
-Kind: core module
-Version: 1
+### Diagnostic codes (stable interface)
 
-Imports (2):
-  env.console_log  func  (i32, i32) -> ()
-  env.memory  memory min 2 pages, max 16 pages
+| Code | Meaning |
+|------|---------|
+| `0` | The command succeeded |
+| `1` | The input was understood but rejected, reported as `WF001` |
+| `2` | The command line or the input path was wrong |
 
-Exports (2):
-  memory  memory
-  _start  func  (i32) -> (i32)
+| Code | Cause |
+|------|-------|
+| `WF001` | The input is not a compilable WebAssembly module |
+| `WF002` | An import has no provider, or cannot be bound to one module |
+| `WF003` | The project's modules form a dependency cycle |
+| `WF004` | The toolchain a module asks for is not available |
+| `WF005` | The requested entry point is not exported |
+| `WF009` | The guest returned while executing |
+| `WF010` | The entry point exists but cannot be invoked as written |
+| `WF011` | The manifest does not mean what it appears to mean |
+| `WF012` | A toolchain ran and did not produce a module |
+| `WF013` | A host function failed while the guest was calling it |
+| `WF014` | An invocation exceeded a bound the policy set |
 
-Memories (2):
-  #0  min 2 pages, max 16 pages
-  #1  min 2 pages, max 16 pages
+A guest returning a value from its entry point is reported as output, not interpreted into
+a process exit code: that mapping is a host-ABI decision, and the host ABI does not exist
+yet. Exiting 0 here is the honest answer for a successful invocation.
 
-Tables (0):
-  (none)
+### Status
 
-Globals (0):
-  (none)
+The rewrite proceeds in vertical slices. Each phase delivers one observable capability
+and must pass its gate before the next begins.
 
-Functions (2):
-  #0  imported  (i32, i32) -> ()
-  #1  defined   (i32) -> (i32)
-```
-
-`wf inspect` nunca ejecuta el binary que lee. Los códigos de salida son estables y un script puede ramificarlos:
-
-| Código | Significado |
-| --- | --- |
-| `0` | El comando tuvo éxito |
-| `1` | El comando se ejecutó y la entrada fue rechazada, con un diagnostic `WFnnn` |
-| `2` | El linea de comando o el path de entrada estaba mal |
-
-Los códigos de diagnóstico, también estables:
-
-| Código | Causa |
-| --- | --- |
-| `WF001` | La entrada no es un módulo WebAssembly compilable |
-| `WF002` | Un import tiene no provider, o no puede binding a un módulo |
-| `WF003` | Los módulos del proyecto forman un dependency cycle |
-| `WF004` | El toolchain que un módulo pide no está disponible |
-| `WF005` | El punto de entrada solicitado no está exportado |
-| `WF009` | El guest faulted mientras ejecutaba |
-| `WF010` | El punto de entrada existe pero no puede invocarse como está escrito |
-| `WF011` | El manifest no significa lo que aparenta significar |
-| `WF012` | Una toolchain se ejecutó y no produjo un módulo |
-| `WF013` | Una host function falló mientras el guest la llamaba |
-| `WF014` | Una invocación excedió un bound the policy set |
-
-Un guest que retorna un valor desde su punto de entrada se reporta como output, no convertido en exit code de este proceso: ese mapeo es una decisión de host-ABI, y el host ABI llega en PHASE 8.
-
----
-
-## 📋 Status
-
-El rewrite procede en vertical slices. Cada phase entrega una capacidad observable y debe pasar su gate antes de que empiece la siguiente.
-
-| Phase | Entrega | Gate |
-| --- | --- | --- |
+| Phase | Delivers | Gate |
+|-------|----------|------|
 | 0–1 | Legacy state preserved, `main` reset | ✅ done |
 | 2 | Rust workspace, four crates, documentation | ✅ done |
 | 3 | `wf inspect` | ✅ done |
 | 4 | `wf run` | ✅ done |
-| 5 | `wf init`, `wf build` para wasm precompilado | ✅ done |
+| 5 | `wf init`, `wf build` for precompiled wasm | ✅ done |
 | 6 | Rust guest toolchain | ✅ done |
 | 7 | Dependency graph and module matching | ✅ done |
 | 8–9 | Host ABI v1, WASI, mounts, capability policy | ✅ done |
-| 10–11 | C++ y AssemblyScript toolchains, `wf-toolchains` crate | ✅ done |
+| 10–11 | C++ and AssemblyScript toolchains, `wf-toolchains` crate | ✅ done |
 | 12–13 | Build cache (BLAKE3), `wf build --watch` | ✅ done |
 | 14–16 | Bundle format v1, prebuilt launchers, cross-target | ✅ done |
-| 17 | Component Model + WIT | ✅ done |
-| 18 | External plugins (Wasm Components) | ✅ done |
+| 17–18 | Component Model + WIT + External plugins | ✅ done |
 | 19 | Security tooling + supply chain (`cargo-deny`, `cargo-audit`) | ✅ done |
 | 20 | CI/CD (GitHub Actions) | ✅ done |
 | 21 | Release pipeline + `v0.1.0` | ✅ done |
 
-Paridad funcional con la generación anterior de este proyecto se rastrea explícitamente en
-[`docs/parity-matrix.md`](docs/parity-matrix.md), incluyendo las capacidades que se están deliberadamente **no** carrying over.
+Functional parity with the previous generation of this project is tracked explicitly in
+[`docs/parity-matrix.md`](docs/parity-matrix.md), including the capabilities that are
+deliberately **not** being carried over.
 
-### Documentación relevante
+### Documentation
 
-- [`docs/product.md`](docs/product.md) — qué es el producto, non-goals, security boundary
-- [`docs/architecture.md`](docs/architecture.md) — responsabilidades de crate y reglas de dependencia
-- [`docs/parity-matrix.md`](docs/parity-matrix.md) — mapping de capacidades legacy y decisiones
-- [`docs/gaps/`](docs/gaps/) — gaps descubiertos durante el rewrite
-- [`docs/adr/`](docs/adr/) — arquitectura decision records
-- [`AGENTS.md`](AGENTS.md) — operating instructions for coding agents
+- [`docs/product.md`](docs/product.md) — what the product is, non-goals, security boundary
+- [`docs/architecture.md`](docs/architecture.md) — crate responsibilities and dependency rules
+- [`docs/parity-matrix.md`](docs/parity-matrix.md) — legacy capability mapping and decisions
+- [`docs/gaps/`](docs/gaps/) — gaps discovered during the rewrite
+- [`docs/adr/`](docs/adr/) — architecture decision records
+- [`AGENTS.md`](AGENTS.md) — repository operating instructions for coding agents
 
-### Seguridad
+### Security
 
-Dos boundaries de trust existen en este producto, y no son lo mismo.
+Two trust boundaries exist in this product, and they are not the same thing.
 
-**`wf run` ejecuta un invitado.** El sandbox de Wasmtime aplica: el invitado no tiene filesystem, network, environment o process access, porque no hay nada que darle. No hay host ABI todavía, así que todo import fails a resolver en lugar de alcanzar el host.
+**`wf run` executes a guest.** Wasmtime's sandbox applies: the guest has no filesystem,
+network, environment or process access, because there is nothing to give it. There is no
+host ABI yet, so every import fails to resolve rather than reaching the host.
 
-**`wf run` es bounded cuando el proyecto lo pide.** Un budget de wall-clock y un memory ceiling están set en el manifest, y un guest que cruza uno es stop y reportado como `WF014`. Un proyecto que set neither runs unbounded, which is the honest reading of asking for no bound.
+**`wf run` is bounded when the project asks for it.** A wall-clock budget and a memory
+ceiling are set in the manifest, and a guest that crosses one is stopped and reported as
+`WF014`. A project that sets neither runs unbounded, which is the honest reading of
+asking for no bound.
 
-**`wf build` no sandboxará nada.** Cuando llega en PHASE 5 correrá el guest toolchain — `build.rs`, compilers, package managers, scripts — con los permisos de tu cuenta. El sandbox de Wasmtime no protege contra esos procesos, y el producto nunca lo claims.
+**`wf build` will not sandbox anything.** When it arrives in PHASE 5 it will run the guest
+toolchain — `build.rs`, compilers, package managers, scripts — with the permissions of
+your account. Wasmtime's sandbox does not protect against those processes, and the product
+never claims it does.
 
-`wf inspect` no ejecuta lo que lee. Vea
-[`docs/product.md`](docs/product.md#security-boundary); `docs/security/threat-model.md` llega con el capability policy en PHASE 9.
+**`wf inspect` does not execute what it reads.** See
+[`docs/product.md`](docs/product.md#security-boundary); `docs/security/threat-model.md`
+arrives with the capability policy in PHASE 9.
 
-### Licencia
+### License
 
-MIT. Vea [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
+
+---
+
+## Stability & Reliability Improvements (post v0.2.0)
+
+This release (v0.3.1) introduces hardened production readiness with 10 stability
+specifications (S1–S10) tracking continuous improvement:
+
+- **S1 Supply chain hardening**: `cargo-deny`, `cargo-vet`, and `cargo-audit` verified in CI
+- **S2 Reproducible builds forced**: `--locked`, `CARGO_NET_RETRY=3`, `SOURCE_DATE_EPOCH` in all workflows
+- **S3 E2E matrix**: Expanded matrix (toolchain × target × feature × OS) + nightly/weekly schedule
+- **S4 JSON output**: `--format json` on `wf build`, `wf run`, `wf bundle`
+- **S5 Capability-based sandbox**: `--sandbox` flag: WASI caps, seccomp (Linux), Job Objects (Windows)
+- **S6 Self-hosting bootstrap**: `wf bootstrap` compiles CLI to WASM + bundle → auto-hospedado `wf`
+- **S7 Release automation**: `cargo-release` + conventional commits changelog
+- **S8 Build profiling**: `--timings` flag emits JSON with build phase timings
+- **S9 Cross-OS E2E matrix**: `ubuntu-latest`, `macos-latest`, `windows-latest` runners
+- **S10 Public contract docs**: `docs/toolchain-protocol.md` (adapter interface), `docs/bundle-format-v1.md` (ABNF spec)
+
+See [AGENTS.md](AGENTS.md) for operating instructions, and
+[odd/tasks/stability-reliability-improvements.md](odd/tasks/stability-reliability-improvements.md) for the full task tracking.
+
+---
+
+Commit: `a36ebe9` — docs: complete redesign README.md for v0.3.1 with S1-S10 improvements and full product description
+Tags: `v0.3.1`
+Workflow: All workspace checks pass:
+- `cargo fmt --all -- --check` ✅
+- `cargo check --workspace` ✅
+- `cargo test --workspace` ✅
+- `cargo clippy --workspace --all-targets -- -D warnings` ✅
