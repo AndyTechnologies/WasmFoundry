@@ -19,9 +19,17 @@ jobs:
     name: E2E - Precompiled WASM
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+    - name: Ensure wasm32 target is installed
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        rustup target add wasm32-unknown-unknown
     - name: Cache Cargo registry
       uses: actions/cache@v4
       with:
@@ -41,9 +49,10 @@ jobs:
     - name: Build wf binary
       run: cargo build --release -p wf-cli
     - name: Run E2E with precompiled toolchain
-      run: 'set -euo pipefail
-
-        WF=$(pwd)/target/release/wf
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        WF="${GITHUB_WORKSPACE}/target/release/wf"
 
         $WF init e2e-test
 
@@ -51,25 +60,32 @@ jobs:
 
         $WF build
 
-        test -f target/hello.wasm
+        test -f target/e2e-test.wasm
 
         $WF run
 
-        $WF inspect target/hello.wasm
+        $WF inspect target/e2e-test.wasm
 
-        $WF inspect target/hello.wasm --format json
+        $WF inspect target/e2e-test.wasm --format json
 
-        echo "Precompiled E2E passed""'
-    timeout-minutes: 30
+        echo "Precompiled E2E passed"
   e2e-rust:
     name: E2E - Rust toolchain
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
+    - name: Ensure wasm32 target is installed
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        rustup target add wasm32-unknown-unknown
     - name: Cache Cargo registry
       uses: actions/cache@v4
       with:
@@ -89,9 +105,10 @@ jobs:
     - name: Build wf binary
       run: cargo build --release -p wf-cli
     - name: Run E2E with Rust toolchain
-      run: 'set -euo pipefail
-
-        WF=$(pwd)/target/release/wf
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        WF="${GITHUB_WORKSPACE}/target/release/wf"
 
         mkdir -p rust-e2e
 
@@ -99,7 +116,7 @@ jobs:
 
         # Write wasmfoundry.toml
 
-        cat > wasmfoundry.toml << ''EOF''
+        cat > wasmfoundry.toml <<'EOF'
 
         schema = 1
 
@@ -122,7 +139,7 @@ jobs:
 
         name = "hello"
 
-        source = "src"
+        source = "src/lib.rs"
 
         toolchain = "rust"
 
@@ -132,7 +149,7 @@ jobs:
 
         mkdir -p src
 
-        cat > src/Cargo.toml << ''EOF''
+        cat > src/Cargo.toml <<'EOF'
 
         [package]
 
@@ -145,8 +162,6 @@ jobs:
 
         [lib]
 
-        crate-type = ["cdylib"]
-
 
         [workspace]
 
@@ -156,7 +171,7 @@ jobs:
 
         mkdir -p src/src
 
-        cat > src/src/lib.rs << ''EOF''
+        cat > src/src/lib.rs <<'EOF'
 
         #[no_mangle]
 
@@ -172,17 +187,24 @@ jobs:
 
         $WF inspect target/hello.wasm
 
-        echo "Rust toolchain E2E passed""'
-    timeout-minutes: 30
+        echo "Rust toolchain E2E passed"
   e2e-multi-module:
     name: E2E - Multi-module
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
+    - name: Ensure wasm32 target is installed
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        rustup target add wasm32-unknown-unknown
     - name: Cache Cargo registry
       uses: actions/cache@v4
       with:
@@ -202,9 +224,10 @@ jobs:
     - name: Build wf binary
       run: cargo build --release -p wf-cli
     - name: Run E2E with multi-module
-      run: 'set -euo pipefail
-
-        WF=$(pwd)/target/release/wf
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        WF="${GITHUB_WORKSPACE}/target/release/wf"
 
         mkdir -p multi-e2e
 
@@ -212,7 +235,7 @@ jobs:
 
         # Write wasmfoundry.toml
 
-        cat > wasmfoundry.toml << ''EOF''
+        cat > wasmfoundry.toml <<'EOF'
 
         schema = 1
 
@@ -256,7 +279,7 @@ jobs:
 
         mkdir -p engine/src
 
-        cat > engine/Cargo.toml << ''EOF''
+        cat > engine/Cargo.toml <<'EOF'
 
         [package]
 
@@ -269,14 +292,12 @@ jobs:
 
         [lib]
 
-        crate-type = ["cdylib"]
-
 
         [workspace]
 
         EOF
 
-        cat > engine/src/lib.rs << ''EOF''
+        cat > engine/src/lib.rs <<'EOF'
 
         #[no_mangle]
 
@@ -288,7 +309,7 @@ jobs:
 
         mkdir -p app/src
 
-        cat > app/Cargo.toml << ''EOF''
+        cat > app/Cargo.toml <<'EOF'
 
         [package]
 
@@ -301,14 +322,12 @@ jobs:
 
         [lib]
 
-        crate-type = ["cdylib"]
-
 
         [workspace]
 
         EOF
 
-        cat > app/src/lib.rs << ''EOF''
+        cat > app/src/lib.rs <<'EOF'
 
         extern "C" { fn hello() -> i32; }
 
@@ -327,8 +346,7 @@ jobs:
 
         $WF run
 
-        echo "Multi-module E2E passed""'
-    timeout-minutes: 30
+        echo "Multi-module E2E passed"
   e2e:
     name: E2E Summary
     runs-on: ubuntu-latest
@@ -339,5 +357,23 @@ jobs:
     if: always()
     steps:
     - name: Check all E2E jobs passed
-      run: "if echo \"${{ needs.e2e-precompiled.result }}${{ needs.e2e-rust.result }}${{ needs.e2e-multi-module.result }}\" | grep -q \"failure|cancelled\"; then\n  echo \"One or more E2E jobs failed\"\n\
-        \  exit 1\nfi\necho \"All E2E tests passed\"\""
+      shell: bash
+      env:
+        PRECOMPILED_RESULT: ${{ needs.e2e-precompiled.result }}
+        RUST_RESULT: ${{ needs.e2e-rust.result }}
+        MULTI_MODULE_RESULT: ${{ needs.e2e-multi-module.result }}
+      run: |
+        set -Eeuo pipefail
+
+        for result in \
+          "$PRECOMPILED_RESULT" \
+          "$RUST_RESULT" \
+          "$MULTI_MODULE_RESULT"
+        do
+          if [[ "$result" != "success" ]]; then
+            echo "::error::An E2E job did not succeed: $result"
+            exit 1
+          fi
+        done
+
+        echo "All E2E tests passed"

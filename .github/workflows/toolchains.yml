@@ -19,11 +19,20 @@ jobs:
     name: Rust toolchain
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install Rust toolchain
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - name: Install Rust toolchain with WASM target
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: wasm32-unknown-unknown
+    - name: Ensure WASM target is installed
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        rustup target add wasm32-unknown-unknown
+        rustup target list --installed
     - name: Cache Cargo registry
       uses: actions/cache@v4
       with:
@@ -43,9 +52,10 @@ jobs:
     - name: Build wf binary
       run: cargo build --release -p wf-cli
     - name: Test Rust toolchain
-      run: 'set -euo pipefail
-
-        WF=$(pwd)/target/release/wf
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        WF="${GITHUB_WORKSPACE}/target/release/wf"
 
         mkdir -p toolchain-rust
 
@@ -53,7 +63,7 @@ jobs:
 
         # Write wasmfoundry.toml
 
-        cat > wasmfoundry.toml << ''EOF''
+        cat > wasmfoundry.toml <<'EOF'
 
         schema = 1
 
@@ -73,7 +83,7 @@ jobs:
 
         name = "hello"
 
-        source = "src"
+        source = "src/lib.rs"
 
         toolchain = "rust"
 
@@ -83,7 +93,7 @@ jobs:
 
         mkdir -p src
 
-        cat > src/Cargo.toml << ''EOF''
+        cat > src/Cargo.toml <<'EOF'
 
         [package]
 
@@ -105,7 +115,7 @@ jobs:
 
         mkdir -p src/src
 
-        cat > src/src/lib.rs << ''EOF''
+        cat > src/src/lib.rs <<'EOF'
 
         #[no_mangle]
 
@@ -119,44 +129,56 @@ jobs:
 
         $WF run
 
-        echo "Rust toolchain test passed""'
-    timeout-minutes: 30
+        echo "Rust toolchain test passed"
   cpp:
     name: C++ toolchain (clang++)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Install Rust toolchain (for wf binary)
       uses: dtolnay/rust-toolchain@stable
-    - name: Install clang++ and lld
-      run: sudo apt-get update && sudo apt-get install -y clang lld
-    - name: Install wasi-sdk
-      run: |
-        WASI_SDK_VERSION=25
-        curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-linux.tar.gz | tar xz -C /tmp
-        echo "/tmp/wasi-sdk-${WASI_SDK_VERSION}.0/bin" >> $GITHUB_PATH
-    - name: Cache Cargo registry
-      uses: actions/cache@v4
-      with:
-        path:
-        - ~/.cargo/registry
-        - ~/.cargo/git
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys:
-        - ${{ runner.os }}-cargo-
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: target
-        key: ${{ runner.os }}-target-cpp-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys:
-        - ${{ runner.os }}-target-cpp-
     - name: Build wf binary
       run: cargo build --release -p wf-cli
-    - name: Test C++ toolchain
-      run: 'set -euo pipefail
+    - name: Install wasi-sdk
+      shell: bash
+      run: |
+        set -Eeuo pipefail
 
-        WF=$(pwd)/target/release/wf
+        WASI_SDK_VERSION=25
+        ARCHIVE="wasi-sdk-${WASI_SDK_VERSION}.0-linux.tar.gz"
+        URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/${ARCHIVE}"
+
+        curl \
+          --fail \
+          --location \
+          --retry 5 \
+          --retry-all-errors \
+          --output "$RUNNER_TEMP/$ARCHIVE" \
+          "$URL"
+
+        # Verify SHA-256 against the checksum published
+        # by the corresponding official release.
+
+        sha256sum "$RUNNER_TEMP/$ARCHIVE"
+
+        tar -xzf "$RUNNER_TEMP/$ARCHIVE" -C "$RUNNER_TEMP"
+
+        SDK_DIR="$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0"
+
+        test -x "$SDK_DIR/bin/clang"
+
+        echo "$SDK_DIR/bin" >> "$GITHUB_PATH"
+
+        "$SDK_DIR/bin/clang" --version
+
+    - name: Test C++ toolchain
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        WF="${GITHUB_WORKSPACE}/target/release/wf"
 
         mkdir -p toolchain-cpp
 
@@ -164,7 +186,7 @@ jobs:
 
         # Write wasmfoundry.toml
 
-        cat > wasmfoundry.toml << ''EOF''
+        cat > wasmfoundry.toml <<'EOF'
 
         schema = 1
 
@@ -176,7 +198,7 @@ jobs:
 
         [project]
 
-        source_dir = "src"
+        source_dir = "."
 
         entry = "_start"
 
@@ -184,17 +206,17 @@ jobs:
 
         name = "hello"
 
-        source = "src"
+        source = "main.cpp"
 
         toolchain = "cpp"
 
         EOF
 
-        # Write hello.cpp
+        # Write main.cpp
 
         mkdir -p src
 
-        cat > src/hello.cpp << ''EOF''
+        cat > src/main.cpp <<'EOF'
 
         extern "C" int _start() { return 456; }
 
@@ -206,21 +228,24 @@ jobs:
 
         $WF run
 
-        echo "C++ toolchain test passed""'
-    timeout-minutes: 30
+        echo "C++ toolchain test passed"
   assemblyscript:
     name: AssemblyScript toolchain (asc)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Install Rust toolchain (for wf binary)
       uses: dtolnay/rust-toolchain@stable
-    - name: Install Node.js and AssemblyScript
+    - name: Install Node.js (LTS)
       uses: actions/setup-node@v4
       with:
-        node-version: '24'
+        node-version: '20'
     - name: Install AssemblyScript
-      run: npm install -g assemblyscript
+      shell: bash
+      run: npm install -g assemblyscript@1.2.0
     - name: Cache Cargo registry
       uses: actions/cache@v4
       with:
@@ -240,9 +265,10 @@ jobs:
     - name: Build wf binary
       run: cargo build --release -p wf-cli
     - name: Test AssemblyScript toolchain
-      run: 'set -euo pipefail
-
-        WF=$(pwd)/target/release/wf
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        WF="${GITHUB_WORKSPACE}/target/release/wf"
 
         mkdir -p toolchain-as
 
@@ -250,7 +276,7 @@ jobs:
 
         # Write wasmfoundry.toml
 
-        cat > wasmfoundry.toml << ''EOF''
+        cat > wasmfoundry.toml <<'EOF'
 
         schema = 1
 
@@ -270,7 +296,7 @@ jobs:
 
         name = "hello"
 
-        source = "src"
+        source = "src/hello.ts"
 
         toolchain = "assemblyscript"
 
@@ -280,7 +306,7 @@ jobs:
 
         mkdir -p src
 
-        cat > src/hello.ts << ''EOF''
+        cat > src/hello.ts <<'EOF'
 
         export function _start(): i32 { return 789; }
 
@@ -292,8 +318,7 @@ jobs:
 
         $WF run
 
-        echo "AssemblyScript toolchain test passed""'
-    timeout-minutes: 30
+        echo "AssemblyScript toolchain test passed"
   toolchains:
     name: Toolchains Summary
     runs-on: ubuntu-latest
@@ -304,5 +329,23 @@ jobs:
     if: always()
     steps:
     - name: Check all toolchain jobs passed
-      run: "if echo \"${{ needs.rust.result }}${{ needs.cpp.result }}${{ needs.assemblyscript.result }}\" | grep -q \"failure|cancelled\"; then\n  echo \"One or more toolchain jobs failed\"\n  exit 1\n\
-        fi\necho \"All toolchain tests passed\"\""
+      shell: bash
+      env:
+        RUST_RESULT: ${{ needs.rust.result }}
+        CPP_RESULT: ${{ needs.cpp.result }}
+        AS_RESULT: ${{ needs.assemblyscript.result }}
+      run: |
+        set -Eeuo pipefail
+
+        for result in \
+          "$RUST_RESULT" \
+          "$CPP_RESULT" \
+          "$AS_RESULT"
+        do
+          if [[ "$result" != "success" ]]; then
+            echo "::error::A toolchain job did not succeed: $result"
+            exit 1
+          fi
+        done
+
+        echo "All toolchain tests passed"
