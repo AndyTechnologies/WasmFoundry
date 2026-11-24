@@ -1,0 +1,14 @@
+schema = 1
+
+[package]
+name = "bundle-example"
+version = "0.1.0"
+
+[project]
+source_dir = "src"
+entry = "_start"
+
+[[module]]
+name = "hello"
+source = "src/hello.wasm"
+toolchain = "precompiled"

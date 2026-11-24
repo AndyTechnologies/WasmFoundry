@@ -1,0 +1,14 @@
+schema = 1
+
+[package]
+name = "hello-rust"
+version = "0.1.0"
+
+[project]
+source_dir = "guest"
+entry = "_start"
+
+[[module]]
+name = "hello"
+source = "guest"
+toolchain = "rust"
