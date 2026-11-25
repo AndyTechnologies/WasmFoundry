@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or improvement for WasmFoundry
+title: "[Feature]: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like to see and why.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this solve? What are you trying to achieve that you can't today?
+      placeholder: |
+        I want to use WasmFoundry to...
+        But currently I can't because...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work? Be as specific as possible.
+      placeholder: |
+        Add a new toolchain for...
+        Extend the manifest with...
+        Add a flag to `wf build` that...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches have you considered? Why is this the best option?
+      placeholder: |
+        I considered using wasm-pack but...
+        The current workaround is to...
+    validations:
+      required: false
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your concrete use case. This helps prioritize and design the feature.
+      placeholder: |
+        I'm building a plugin system where...
+        My users need to...
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Willing to Contribute
+      options:
+        - label: I'm willing to implement this (or help with implementation)
+        - label: I can test this when a PR is ready
+        - label: I can help with documentation
+        - label: This is just an idea for the future

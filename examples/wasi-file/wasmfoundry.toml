@@ -1,0 +1,22 @@
+schema = 1
+
+[package]
+name = "wasi-file"
+version = "0.1.0"
+
+[project]
+source_dir = "src"
+entry = "_start"
+
+[[module]]
+name = "main"
+source = "src/main.wasm"
+toolchain = "precompiled"
+
+[runtime]
+wasi = true
+
+[[mount]]
+host = "./data"
+guest = "/data"
+access = "read-only"

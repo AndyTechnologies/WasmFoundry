@@ -1,0 +1,19 @@
+schema = 1
+
+[package]
+name = "two-modules"
+version = "0.1.0"
+
+[project]
+source_dir = "src"
+entry = "_start"
+
+[[module]]
+name = "app"
+source = "src/app.wasm"
+toolchain = "precompiled"
+
+[[module]]
+name = "engine"
+source = "src/engine.wasm"
+toolchain = "precompiled"

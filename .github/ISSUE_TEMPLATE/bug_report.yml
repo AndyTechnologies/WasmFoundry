@@ -1,0 +1,84 @@
+name: Bug Report
+description: Report a bug in WasmFoundry
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below.
+  - type: input
+    id: version
+    attributes:
+      label: WasmFoundry version
+      description: Run `wf --version` and paste the output
+      placeholder: "v0.3.1"
+    validations:
+      required: true
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust version
+      description: Run `rustc --version` and paste the output
+      placeholder: "rustc 1.82.0 (f6e511e29 2024-10-09)"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug
+      placeholder: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the bug. Include exact commands and file contents if relevant.
+      placeholder: |
+        1. Create a project with `wf init test`
+        2. Edit wasmfoundry.toml to...
+        3. Run `wf build`
+        4. Observe error...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: The build should succeed and produce...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include full error output if any.
+      placeholder: |
+        WF002: import has no provider...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other information, configuration, or screenshots that might help
+      placeholder: |
+        - wasmfoundry.toml contents...
+        - Guest source code...
+        - Output of `wf inspect ...` if relevant...
+    validations:
+      required: false
